@@ -1,0 +1,33 @@
+import { defineConfig, devices } from "@playwright/test";
+import { join } from "node:path";
+
+const port = Number(process.env.PORT ?? 3000);
+const baseURL = `http://127.0.0.1:${port}`;
+const storeFile = join(process.cwd(), "test-results", "e2e-people.json");
+
+export default defineConfig({
+  testDir: "./e2e",
+  fullyParallel: true,
+  reporter: [["list"], ["html", { open: "never" }]],
+  use: {
+    baseURL,
+    trace: "on-first-retry",
+  },
+  projects: [
+    {
+      name: "chromium",
+      use: { ...devices["Desktop Chrome"] },
+    },
+  ],
+  webServer: {
+    command: "npm run dev",
+    url: baseURL,
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+    env: {
+      WORKFLOW_TRACKER_STORE: "file",
+      WORKFLOW_TRACKER_STORE_FILE: storeFile,
+      PORT: String(port),
+    },
+  },
+});
