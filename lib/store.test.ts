@@ -73,6 +73,7 @@ describe("file-backed store", () => {
     const result = await addPerson({
       email: "  PERSON@EXAMPLE.COM ",
       name: " Person One ",
+      role: " Reviewer ",
     });
 
     expect(result).toMatchObject({
@@ -80,6 +81,7 @@ describe("file-backed store", () => {
       person: {
         email: "person@example.com",
         name: "Person One",
+        role: "Reviewer",
         step: "eval",
       },
     });
@@ -102,9 +104,13 @@ describe("file-backed store", () => {
     await expect(readFile(file, "utf8")).resolves.toBe(before);
   });
 
-  it("updates fields, clears names, and rejects missing or conflicting updates", async () => {
+  it("updates fields, clears names and roles, and rejects missing or conflicting updates", async () => {
     const { addPerson, updatePerson } = await loadStore();
-    const first = await addPerson({ email: "one@example.com", name: "One" });
+    const first = await addPerson({
+      email: "one@example.com",
+      name: "One",
+      role: "Reviewer",
+    });
     const second = await addPerson({ email: "two@example.com" });
     if (!first.ok || !second.ok) throw new Error("fixtures failed");
 
@@ -112,6 +118,7 @@ describe("file-backed store", () => {
       updatePerson(first.person.id, {
         email: " renamed@example.com ",
         name: null,
+        role: null,
         step: "background_check",
       }),
     ).resolves.toMatchObject({
@@ -119,6 +126,7 @@ describe("file-backed store", () => {
       person: {
         email: "renamed@example.com",
         name: undefined,
+        role: undefined,
         step: "background_check",
       },
     });
@@ -167,6 +175,68 @@ describe("file-backed store", () => {
       bulkDelete([one.person.id, "missing"]),
     ).resolves.toEqual({ deleted: 1 });
     await expect(listPeople()).resolves.toHaveLength(2);
+  });
+
+  it("imports people by creating new emails and updating existing emails", async () => {
+    const { addPerson, importPeople, listPeople } = await loadStore();
+    const existing = await addPerson({
+      email: "existing@example.com",
+      name: "Existing",
+      role: "Old Role",
+      step: "eval",
+    });
+    if (!existing.ok) throw new Error("fixture failed");
+
+    await expect(
+      importPeople([
+        {
+          email: "EXISTING@example.com",
+          name: "Existing Updated",
+          role: "Lead",
+          step: "sent_contracts",
+        },
+        {
+          email: "new@example.com",
+          name: "New Person",
+          role: "Reviewer",
+          step: "background_check",
+        },
+      ]),
+    ).resolves.toMatchObject({
+      created: 1,
+      updated: 1,
+      people: [
+        {
+          id: existing.person.id,
+          email: "existing@example.com",
+          name: "Existing Updated",
+          role: "Lead",
+          step: "sent_contracts",
+        },
+        {
+          email: "new@example.com",
+          name: "New Person",
+          role: "Reviewer",
+          step: "background_check",
+        },
+      ],
+    });
+
+    await expect(listPeople()).resolves.toMatchObject([
+      {
+        id: existing.person.id,
+        email: "existing@example.com",
+        name: "Existing Updated",
+        role: "Lead",
+        step: "sent_contracts",
+      },
+      {
+        email: "new@example.com",
+        name: "New Person",
+        role: "Reviewer",
+        step: "background_check",
+      },
+    ]);
   });
 
   it("does not rewrite the file for no-op bulk mutations", async () => {

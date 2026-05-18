@@ -1,7 +1,7 @@
 "use client";
 
 import { useDroppable } from "@dnd-kit/core";
-import { PlusIcon } from "lucide-react";
+import { DownloadIcon, PlusIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ type ColumnProps = {
   onEdit: (person: Person) => void;
   onDelete: (id: string) => void;
   onAddHere: (step: Step) => void;
+  onDownload: (step: Step) => void;
 };
 
 export function Column({
@@ -38,6 +39,7 @@ export function Column({
   onEdit,
   onDelete,
   onAddHere,
+  onDownload,
 }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: `col-${step}` });
   const color = STEP_COLORS[step];
@@ -67,15 +69,27 @@ export function Column({
             {STEP_DESCRIPTIONS[step]}
           </p>
         </div>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="text-muted-foreground hover:text-foreground"
-          onClick={() => onAddHere(step)}
-          aria-label={`Add to ${STEP_LABELS[step]}`}
-        >
-          <PlusIcon />
-        </Button>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => onDownload(step)}
+            disabled={totalCount === 0}
+            aria-label={`Download ${STEP_LABELS[step]} CSV`}
+          >
+            <DownloadIcon />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => onAddHere(step)}
+            aria-label={`Add to ${STEP_LABELS[step]}`}
+          >
+            <PlusIcon />
+          </Button>
+        </div>
       </div>
 
       <div

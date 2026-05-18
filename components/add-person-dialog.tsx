@@ -20,7 +20,12 @@ type AddPersonDialogProps = {
   open: boolean;
   initialStep: Step;
   onOpenChange: (open: boolean) => void;
-  onSubmit: (data: { email: string; name?: string; step: Step }) => Promise<void>;
+  onSubmit: (data: {
+    email: string;
+    name?: string;
+    role?: string;
+    step: Step;
+  }) => Promise<void>;
 };
 
 export function AddPersonDialog({
@@ -50,6 +55,7 @@ function AddPersonForm({
 }: Omit<AddPersonDialogProps, "open">) {
   const [email, setEmail] = React.useState("");
   const [name, setName] = React.useState("");
+  const [role, setRole] = React.useState("");
   const [step, setStep] = React.useState<Step>(initialStep);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -65,6 +71,7 @@ function AddPersonForm({
       await onSubmit({
         email: email.trim(),
         name: name.trim() || undefined,
+        role: role.trim() || undefined,
         step,
       });
       onOpenChange(false);
@@ -110,6 +117,20 @@ function AddPersonForm({
             autoComplete="off"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            disabled={submitting}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="add-role">
+            Role <span className="text-muted-foreground">(optional)</span>
+          </Label>
+          <Input
+            id="add-role"
+            type="text"
+            placeholder="Reviewer"
+            autoComplete="off"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
             disabled={submitting}
           />
         </div>

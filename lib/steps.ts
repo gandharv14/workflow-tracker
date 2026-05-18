@@ -60,7 +60,15 @@ export function isStep(value: unknown): value is Step {
 
 export function normalizeStep(value: unknown): Step | null {
   if (isStep(value)) return value;
-  if (value === "interview") return "eval";
-  if (value === "gmail_creation") return "background_check";
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase().replace(/\s+/g, "_");
+  if (isStep(normalized)) return normalized;
+  if (normalized === "interview") return "eval";
+  if (normalized === "gmail_creation") return "background_check";
+  for (const step of STEP_ORDER) {
+    if (STEP_LABELS[step].toLowerCase().replace(/\s+/g, "_") === normalized) {
+      return step;
+    }
+  }
   return null;
 }

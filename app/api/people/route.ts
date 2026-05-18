@@ -30,6 +30,7 @@ export async function POST(request: Request) {
   const result = await addPerson({
     email: parsed.data.email,
     name: parsed.data.name,
+    role: parsed.data.role,
     step: parsed.data.step as Step | undefined,
   });
 

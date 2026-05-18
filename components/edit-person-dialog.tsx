@@ -20,7 +20,7 @@ type EditPersonDialogProps = {
   onOpenChange: (open: boolean) => void;
   onSubmit: (
     id: string,
-    patch: { email: string; name: string | null },
+    patch: { email: string; name: string | null; role: string | null },
   ) => Promise<void>;
 };
 
@@ -54,6 +54,7 @@ function EditPersonForm({
 }: EditPersonFormProps) {
   const [email, setEmail] = React.useState(person.email);
   const [name, setName] = React.useState(person.name ?? "");
+  const [role, setRole] = React.useState(person.role ?? "");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -68,6 +69,7 @@ function EditPersonForm({
       await onSubmit(person.id, {
         email: email.trim(),
         name: name.trim() ? name.trim() : null,
+        role: role.trim() ? role.trim() : null,
       });
       onOpenChange(false);
     } catch (err) {
@@ -107,6 +109,17 @@ function EditPersonForm({
             type="text"
             value={name}
             onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="edit-role">
+            Role <span className="text-muted-foreground">(optional)</span>
+          </Label>
+          <Input
+            id="edit-role"
+            type="text"
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
           />
         </div>
         {error ? <p className="text-xs text-destructive">{error}</p> : null}

@@ -6,6 +6,7 @@ import {
   createPerson,
   deletePersonRequest,
   fetchPeople,
+  importPeopleRequest,
   patchPerson,
 } from "./api";
 import { person } from "@/test/factories";
@@ -33,10 +34,18 @@ describe("client API helpers", () => {
       .mockResolvedValueOnce(Response.json(created))
       .mockResolvedValueOnce(Response.json({ ...created, name: "New Name" }))
       .mockResolvedValueOnce(new Response(null, { status: 204 }))
-      .mockResolvedValueOnce(Response.json({ deleted: 2 }));
+      .mockResolvedValueOnce(Response.json({ deleted: 2 }))
+      .mockResolvedValueOnce(
+        Response.json({ created: 1, updated: 0, people: [created] }),
+      );
 
     await expect(
-      createPerson({ email: "new@example.com", name: "New", step: "eval" }),
+      createPerson({
+        email: "new@example.com",
+        name: "New",
+        role: "Reviewer",
+        step: "eval",
+      }),
     ).resolves.toEqual(created);
     expect(fetchMock).toHaveBeenLastCalledWith("/api/people", {
       method: "POST",
@@ -44,17 +53,26 @@ describe("client API helpers", () => {
       body: JSON.stringify({
         email: "new@example.com",
         name: "New",
+        role: "Reviewer",
         step: "eval",
       }),
     });
 
     await expect(
-      patchPerson("person/1", { email: "new@example.com", name: null }),
+      patchPerson("person/1", {
+        email: "new@example.com",
+        name: null,
+        role: "Lead",
+      }),
     ).resolves.toMatchObject({ name: "New Name" });
     expect(fetchMock).toHaveBeenLastCalledWith("/api/people/person%2F1", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: "new@example.com", name: null }),
+      body: JSON.stringify({
+        email: "new@example.com",
+        name: null,
+        role: "Lead",
+      }),
     });
 
     await expect(deletePersonRequest("person/1")).resolves.toBeUndefined();
@@ -69,6 +87,19 @@ describe("client API helpers", () => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action: "delete", ids: ["one", "two"] }),
+    });
+
+    await expect(
+      importPeopleRequest({
+        people: [{ email: "import@example.com", role: "Ops", step: "eval" }],
+      }),
+    ).resolves.toEqual({ created: 1, updated: 0, people: [created] });
+    expect(fetchMock).toHaveBeenLastCalledWith("/api/people/import", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        people: [{ email: "import@example.com", role: "Ops", step: "eval" }],
+      }),
     });
   });
 

@@ -8,6 +8,7 @@ export function person(overrides: Partial<Person> = {}): Person {
     id,
     email: overrides.email ?? `${id}@example.com`,
     name: overrides.name,
+    role: overrides.role,
     step: overrides.step ?? ("eval" satisfies Step),
     createdAt: overrides.createdAt ?? now,
     updatedAt: now,

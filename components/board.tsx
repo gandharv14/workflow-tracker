@@ -11,12 +11,13 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, UploadIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { AddPersonDialog } from "@/components/add-person-dialog";
 import { EditPersonDialog } from "@/components/edit-person-dialog";
+import { UploadCsvDialog } from "@/components/upload-csv-dialog";
 import { BulkActionBar } from "@/components/bulk-action-bar";
 import { Column } from "@/components/column";
 import { PersonCard } from "@/components/person-card";
@@ -26,8 +27,10 @@ import {
   createPerson,
   deletePersonRequest,
   fetchPeople,
+  importPeopleRequest,
   patchPerson,
 } from "@/lib/api";
+import { serializePeopleCsv, type CsvPersonInput } from "@/lib/csv";
 import { normalizeStep, STEP_LABELS, STEP_ORDER, type Step } from "@/lib/steps";
 import type { Person } from "@/lib/types";
 
@@ -58,6 +61,18 @@ function isNotFoundError(err: unknown): boolean {
   );
 }
 
+function downloadCsv(filename: string, csv: string): void {
+  const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export function Board({ initialPeople }: BoardProps) {
   const [people, setPeople] = React.useState<Person[]>(() =>
     initialPeople.map(normalizePersonStep),
@@ -67,6 +82,7 @@ export function Board({ initialPeople }: BoardProps) {
     () => new Set(),
   );
   const [addOpen, setAddOpen] = React.useState(false);
+  const [uploadOpen, setUploadOpen] = React.useState(false);
   const [addInitialStep, setAddInitialStep] = React.useState<Step>("eval");
   const [editing, setEditing] = React.useState<Person | null>(null);
   const [activeId, setActiveId] = React.useState<string | null>(null);
@@ -88,10 +104,22 @@ export function Board({ initialPeople }: BoardProps) {
   const filteredPeople = React.useMemo(() => {
     if (!trimmedQuery) return people;
     return people.filter((p) => {
-      const haystack = `${p.email} ${p.name ?? ""}`.toLowerCase();
+      const haystack = `${p.email} ${p.name ?? ""} ${p.role ?? ""}`.toLowerCase();
       return haystack.includes(trimmedQuery);
     });
   }, [people, trimmedQuery]);
+
+  const allPeopleByStep = React.useMemo(() => {
+    const groups = makeStepRecord<Person[]>(() => []);
+    for (const p of people) groups[normalizeStep(p.step) ?? "eval"].push(p);
+    for (const s of STEP_ORDER) {
+      groups[s].sort(
+        (a, b) =>
+          new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
+      );
+    }
+    return groups;
+  }, [people]);
 
   const peopleByStep = React.useMemo(() => {
     const groups = makeStepRecord<Person[]>(() => []);
@@ -198,14 +226,15 @@ export function Board({ initialPeople }: BoardProps) {
   );
 
   const handleAdd = React.useCallback(
-    async (data: { email: string; name?: string; step: Step }) => {
+    async (data: { email: string; name?: string; role?: string; step: Step }) => {
       const created = normalizePersonStep(await createPerson(data));
       setPeople((prev) => [
         ...prev.filter((p) => !sameNormalizedEmail(p.email, created.email)),
         created,
       ]);
       if (trimmedQuery) {
-        const createdHaystack = `${created.email} ${created.name ?? ""}`.toLowerCase();
+        const createdHaystack =
+          `${created.email} ${created.name ?? ""} ${created.role ?? ""}`.toLowerCase();
         if (!createdHaystack.includes(trimmedQuery)) setQuery("");
       }
       toast.success(`Added ${created.email}`);
@@ -214,12 +243,52 @@ export function Board({ initialPeople }: BoardProps) {
   );
 
   const handleEditSubmit = React.useCallback(
-    async (id: string, patch: { email: string; name: string | null }) => {
+    async (
+      id: string,
+      patch: { email: string; name: string | null; role: string | null },
+    ) => {
       const updated = normalizePersonStep(await patchPerson(id, patch));
       setPeople((prev) => prev.map((p) => (p.id === id ? updated : p)));
       toast.success("Updated");
     },
     [],
+  );
+
+  const handleCsvImport = React.useCallback(
+    async (rows: CsvPersonInput[]) => {
+      const result = await importPeopleRequest({ people: rows });
+      const importedPeople = result.people.map(normalizePersonStep);
+      const importedEmails = new Set(
+        importedPeople.map((person) => person.email.trim().toLowerCase()),
+      );
+      const importedIds = new Set(importedPeople.map((person) => person.id));
+
+      setPeople((prev) => [
+        ...prev.filter(
+          (person) =>
+            !importedIds.has(person.id) &&
+            !importedEmails.has(person.email.trim().toLowerCase()),
+        ),
+        ...importedPeople,
+      ]);
+      if (trimmedQuery) setQuery("");
+
+      const total = result.created + result.updated;
+      toast.success(
+        `Imported ${total} ${total === 1 ? "user" : "users"} (${result.created} new, ${result.updated} updated)`,
+      );
+    },
+    [trimmedQuery],
+  );
+
+  const handleDownloadStep = React.useCallback(
+    (step: Step) => {
+      const rows = allPeopleByStep[step];
+      if (rows.length === 0) return;
+      downloadCsv(`workflow-${step}.csv`, serializePeopleCsv(rows));
+      toast.success(`Downloaded ${STEP_LABELS[step]} CSV`);
+    },
+    [allPeopleByStep],
   );
 
   const handleDelete = React.useCallback(
@@ -344,6 +413,9 @@ export function Board({ initialPeople }: BoardProps) {
                 Clear ({selectedIds.size})
               </Button>
             ) : null}
+            <Button variant="outline" onClick={() => setUploadOpen(true)}>
+              <UploadIcon /> Upload CSV
+            </Button>
             <Button
               onClick={() => {
                 setAddInitialStep("eval");
@@ -376,6 +448,7 @@ export function Board({ initialPeople }: BoardProps) {
                 onMove={moveOne}
                 onEdit={setEditing}
                 onDelete={handleDelete}
+                onDownload={handleDownloadStep}
                 onAddHere={(s) => {
                   setAddInitialStep(s);
                   setAddOpen(true);
@@ -440,6 +513,12 @@ export function Board({ initialPeople }: BoardProps) {
           if (!open) setEditing(null);
         }}
         onSubmit={handleEditSubmit}
+      />
+
+      <UploadCsvDialog
+        open={uploadOpen}
+        onOpenChange={setUploadOpen}
+        onSubmit={handleCsvImport}
       />
     </div>
   );

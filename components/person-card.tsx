@@ -112,6 +112,11 @@ export function PersonCard({
           >
             {person.email}
           </div>
+          {person.role ? (
+            <div className="mt-1 inline-flex max-w-full rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-medium text-secondary-foreground">
+              <span className="truncate">{person.role}</span>
+            </div>
+          ) : null}
         </div>
       </div>
 

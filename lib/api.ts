@@ -33,6 +33,7 @@ export async function fetchPeople(): Promise<Person[]> {
 export async function createPerson(input: {
   email: string;
   name?: string;
+  role?: string;
   step?: Step;
 }): Promise<Person> {
   const res = await fetch("/api/people", {
@@ -45,7 +46,7 @@ export async function createPerson(input: {
 
 export async function patchPerson(
   id: string,
-  patch: { email?: string; name?: string | null; step?: Step },
+  patch: { email?: string; name?: string | null; role?: string | null; step?: Step },
 ): Promise<Person> {
   const res = await fetch(`/api/people/${encodeURIComponent(id)}`, {
     method: "PATCH",
@@ -74,4 +75,15 @@ export async function bulkRequest(input: {
     body: JSON.stringify(input),
   });
   return handle<{ updated?: Person[]; deleted?: number }>(res);
+}
+
+export async function importPeopleRequest(input: {
+  people: Array<{ email: string; name?: string; role?: string; step?: Step }>;
+}): Promise<{ created: number; updated: number; people: Person[] }> {
+  const res = await fetch(`/api/people/import`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  return handle<{ created: number; updated: number; people: Person[] }>(res);
 }

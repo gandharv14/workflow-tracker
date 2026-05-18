@@ -28,6 +28,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   const result = await updatePerson(id, {
     email: parsed.data.email,
     name: parsed.data.name as string | null | undefined,
+    role: parsed.data.role as string | null | undefined,
     step: parsed.data.step as Step | undefined,
   });
 

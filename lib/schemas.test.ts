@@ -1,18 +1,25 @@
 import { describe, expect, it } from "vitest";
 
-import { bulkSchema, createPersonSchema, updatePersonSchema } from "./schemas";
+import {
+  bulkSchema,
+  createPersonSchema,
+  importPeopleSchema,
+  updatePersonSchema,
+} from "./schemas";
 
 describe("createPersonSchema", () => {
   it("accepts valid people and trims optional fields", () => {
     const result = createPersonSchema.parse({
       email: "  JANE@EXAMPLE.COM ",
       name: " Jane Doe ",
+      role: " Reviewer ",
       step: "background_check",
     });
 
     expect(result).toEqual({
       email: "JANE@EXAMPLE.COM",
       name: "Jane Doe",
+      role: "Reviewer",
       step: "background_check",
     });
   });
@@ -26,13 +33,15 @@ describe("createPersonSchema", () => {
     ).toBe("eval");
   });
 
-  it("turns a blank name into undefined", () => {
+  it("turns blank optional text into undefined", () => {
     const result = createPersonSchema.parse({
       email: "person@example.com",
       name: "   ",
+      role: "   ",
     });
 
     expect(result.name).toBeUndefined();
+    expect(result.role).toBeUndefined();
   });
 
   it("rejects invalid email and workflow step values", () => {
@@ -55,11 +64,13 @@ describe("updatePersonSchema", () => {
       updatePersonSchema.parse({
         email: "person@example.com",
         name: null,
+        role: "Lead",
         step: "sent_contracts",
       }),
     ).toEqual({
       email: "person@example.com",
       name: null,
+      role: "Lead",
       step: "sent_contracts",
     });
   });
@@ -76,6 +87,38 @@ describe("updatePersonSchema", () => {
     ).toThrow("Must be a valid email address");
 
     expect(() => updatePersonSchema.parse({ step: "done" })).toThrow();
+  });
+});
+
+describe("importPeopleSchema", () => {
+  it("accepts rows and normalizes step labels", () => {
+    expect(
+      importPeopleSchema.parse({
+        people: [
+          {
+            email: "person@example.com",
+            name: " Person ",
+            role: " Reviewer ",
+            step: "Eval + Interview",
+          },
+        ],
+      }),
+    ).toEqual({
+      people: [
+        {
+          email: "person@example.com",
+          name: "Person",
+          role: "Reviewer",
+          step: "eval",
+        },
+      ],
+    });
+  });
+
+  it("requires at least one row", () => {
+    expect(() => importPeopleSchema.parse({ people: [] })).toThrow(
+      "Upload at least one person",
+    );
   });
 });
 

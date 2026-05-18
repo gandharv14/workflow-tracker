@@ -34,6 +34,8 @@ function parsePeople(raw: string): Person[] {
     if (!Array.isArray(parsed)) return [];
     return parsed.map((person) => ({
       ...person,
+      name: normalizeOptionalText(person.name),
+      role: normalizeOptionalText(person.role),
       step: normalizeStep(person.step) ?? "eval",
     }));
   } catch {
@@ -145,6 +147,12 @@ function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
 
+function normalizeOptionalText(value: string | undefined | null): string | undefined {
+  return typeof value === "string" && value.trim().length > 0
+    ? value.trim()
+    : undefined;
+}
+
 export function listPeople(): Promise<Person[]> {
   return withLock(async () => (await readAll()).people);
 }
@@ -156,6 +164,7 @@ type AddPersonResult =
 export function addPerson(input: {
   email: string;
   name?: string;
+  role?: string;
   step?: Step;
 }): Promise<AddPersonResult> {
   return withLock(() =>
@@ -172,7 +181,8 @@ export function addPerson(input: {
       const person: Person = {
         id: nanoid(10),
         email,
-        name: input.name?.trim() || undefined,
+        name: normalizeOptionalText(input.name),
+        role: normalizeOptionalText(input.role),
         step,
         createdAt: now,
         updatedAt: now,
@@ -191,7 +201,7 @@ type UpdatePersonResult =
 
 export function updatePerson(
   id: string,
-  patch: { email?: string; name?: string | null; step?: Step },
+  patch: { email?: string; name?: string | null; role?: string | null; step?: Step },
 ): Promise<UpdatePersonResult> {
   return withLock(() =>
     mutate<UpdatePersonResult>(async (people) => {
@@ -221,13 +231,21 @@ export function updatePerson(
         patch.name === null
           ? undefined
           : patch.name !== undefined
-            ? patch.name.trim() || undefined
+            ? normalizeOptionalText(patch.name)
             : current.name;
+
+      const nextRole =
+        patch.role === null
+          ? undefined
+          : patch.role !== undefined
+            ? normalizeOptionalText(patch.role)
+            : current.role;
 
       const updated: Person = {
         ...current,
         email: nextEmail,
         name: nextName,
+        role: nextRole,
         step:
           patch.step !== undefined
             ? normalizeStep(patch.step) ?? current.step
@@ -294,6 +312,75 @@ export function bulkDelete(ids: string[]): Promise<{ deleted: number }> {
         return { next: null, result: { deleted: 0 } };
       }
       return { next, result: { deleted } };
+    }),
+  );
+}
+
+type ImportPeopleInput = {
+  email: string;
+  name?: string;
+  role?: string;
+  step?: Step;
+};
+
+export function importPeople(
+  inputs: ImportPeopleInput[],
+): Promise<{ created: number; updated: number; people: Person[] }> {
+  return withLock(() =>
+    mutate(async (people) => {
+      const now = new Date().toISOString();
+      const nextPeople = people.slice();
+      const indexByEmail = new Map(
+        nextPeople.map((person, index) => [normalizeEmail(person.email), index]),
+      );
+      const changedPeople = new Map<string, Person>();
+      let created = 0;
+      let updated = 0;
+
+      for (const input of inputs) {
+        const email = normalizeEmail(input.email);
+        const idx = indexByEmail.get(email);
+        if (idx === undefined) {
+          const person: Person = {
+            id: nanoid(10),
+            email,
+            name: normalizeOptionalText(input.name),
+            role: normalizeOptionalText(input.role),
+            step: normalizeStep(input.step) ?? "eval",
+            createdAt: now,
+            updatedAt: now,
+          };
+          indexByEmail.set(email, nextPeople.length);
+          nextPeople.push(person);
+          changedPeople.set(email, person);
+          created += 1;
+          continue;
+        }
+
+        const current = nextPeople[idx];
+        const updatedPerson: Person = {
+          ...current,
+          name: normalizeOptionalText(input.name),
+          role: normalizeOptionalText(input.role),
+          step:
+            input.step !== undefined
+              ? normalizeStep(input.step) ?? current.step
+              : current.step,
+          updatedAt: now,
+        };
+        nextPeople[idx] = updatedPerson;
+        changedPeople.set(email, updatedPerson);
+        updated += 1;
+      }
+
+      return {
+        next: created > 0 || updated > 0 ? nextPeople : null,
+        result: {
+          created,
+          updated,
+          people: Array.from(changedPeople.values()),
+        },
+      };
     }),
   );
 }

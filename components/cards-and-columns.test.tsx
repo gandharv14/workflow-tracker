@@ -16,6 +16,7 @@ describe("PersonCard", () => {
     const existing = person({
       email: "jane@example.com",
       name: "Jane Doe",
+      role: "Reviewer",
       step: "eval",
     });
 
@@ -32,6 +33,7 @@ describe("PersonCard", () => {
 
     expect(screen.getByText("Jane Doe")).toBeInTheDocument();
     expect(screen.getByText("jane@example.com")).toBeInTheDocument();
+    expect(screen.getByText("Reviewer")).toBeInTheDocument();
 
     await user.click(screen.getByLabelText("Select jane@example.com"));
     expect(onToggleSelect).toHaveBeenCalledWith(existing.id);
@@ -67,6 +69,7 @@ describe("Column", () => {
   it("renders counts, people, add action, and search-aware empty states", async () => {
     const user = userEvent.setup();
     const onAddHere = vi.fn();
+    const onDownload = vi.fn();
 
     const { rerender } = render(
       <Column
@@ -80,6 +83,7 @@ describe("Column", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onAddHere={onAddHere}
+        onDownload={onDownload}
       />,
     );
 
@@ -88,6 +92,8 @@ describe("Column", () => {
     expect(screen.getByText("p1@example.com")).toBeInTheDocument();
     await user.click(screen.getByLabelText("Add to Eval + Interview"));
     expect(onAddHere).toHaveBeenCalledWith("eval");
+    await user.click(screen.getByLabelText("Download Eval + Interview CSV"));
+    expect(onDownload).toHaveBeenCalledWith("eval");
 
     rerender(
       <Column
@@ -101,6 +107,7 @@ describe("Column", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onAddHere={vi.fn()}
+        onDownload={vi.fn()}
       />,
     );
     expect(screen.getByText("No matches in this column")).toBeInTheDocument();
@@ -117,6 +124,7 @@ describe("Column", () => {
         onEdit={vi.fn()}
         onDelete={vi.fn()}
         onAddHere={vi.fn()}
+        onDownload={vi.fn()}
       />,
     );
     expect(screen.getByText("Drop someone here or click + to add")).toBeInTheDocument();

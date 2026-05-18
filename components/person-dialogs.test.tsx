@@ -37,6 +37,7 @@ describe("AddPersonDialog", () => {
     await user.clear(screen.getByLabelText("Email"));
     await user.type(screen.getByLabelText("Email"), "person@example.com");
     await user.type(screen.getByLabelText(/Name/), "Jane Doe");
+    await user.type(screen.getByLabelText(/Role/), "Reviewer");
     expect(screen.getByLabelText("Workflow step")).toHaveValue("background_check");
     await user.selectOptions(
       screen.getByLabelText("Workflow step"),
@@ -48,6 +49,7 @@ describe("AddPersonDialog", () => {
       expect(onSubmit).toHaveBeenCalledWith({
         email: "person@example.com",
         name: "Jane Doe",
+        role: "Reviewer",
         step: "sent_contracts",
       });
     });
@@ -123,6 +125,7 @@ describe("EditPersonDialog", () => {
       id: "p1",
       email: "old@example.com",
       name: "Old Name",
+        role: "Old Role",
     });
 
     render(
@@ -136,12 +139,15 @@ describe("EditPersonDialog", () => {
     await user.clear(screen.getByLabelText("Email"));
     await user.type(screen.getByLabelText("Email"), " new@example.com ");
     await user.clear(screen.getByLabelText(/Name/));
+    await user.clear(screen.getByLabelText(/Role/));
+    await user.type(screen.getByLabelText(/Role/), "Lead");
     await user.click(screen.getByRole("button", { name: "Save changes" }));
 
     await waitFor(() => {
       expect(onSubmit).toHaveBeenCalledWith("p1", {
         email: "new@example.com",
         name: null,
+        role: "Lead",
       });
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);

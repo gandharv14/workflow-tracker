@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { toast } from "sonner";
@@ -12,6 +12,7 @@ vi.mock("@/lib/api", () => ({
   createPerson: vi.fn(),
   deletePersonRequest: vi.fn(),
   fetchPeople: vi.fn(),
+  importPeopleRequest: vi.fn(),
   patchPerson: vi.fn(),
 }));
 
@@ -20,11 +21,13 @@ const fetchPeople = vi.mocked(api.fetchPeople);
 const patchPerson = vi.mocked(api.patchPerson);
 const deletePersonRequest = vi.mocked(api.deletePersonRequest);
 const bulkRequest = vi.mocked(api.bulkRequest);
+const importPeopleRequest = vi.mocked(api.importPeopleRequest);
 const toastMock = vi.mocked(toast);
 
 beforeEach(() => {
   createPerson.mockReset();
   fetchPeople.mockReset();
+  importPeopleRequest.mockReset();
   patchPerson.mockReset();
   deletePersonRequest.mockReset();
   bulkRequest.mockReset();
@@ -97,6 +100,7 @@ describe("Board", () => {
       expect(createPerson).toHaveBeenCalledWith({
         email: "created@example.com",
         name: "Created Person",
+        role: undefined,
         step: "background_check",
       });
     });
@@ -170,6 +174,7 @@ describe("Board", () => {
       expect(createPerson).toHaveBeenCalledWith({
         email: "recreated@example.com",
         name: "Recreated Record",
+        role: undefined,
         step: "eval",
       }),
     );
@@ -324,6 +329,83 @@ describe("Board", () => {
 
     await user.click(screen.getByLabelText("Clear selection"));
     expect(screen.queryByText("1 selected")).not.toBeInTheDocument();
+  });
+
+  it("uploads a CSV and replaces matching emails with imported users", async () => {
+    const user = userEvent.setup();
+    const existing = person({
+      id: "existing",
+      email: "existing@example.com",
+      name: "Existing",
+      role: "Old Role",
+      step: "eval",
+    });
+    const updated = {
+      ...existing,
+      name: "Existing Updated",
+      role: "Lead",
+      step: "sent_contracts" as const,
+      updatedAt: "2026-01-02T00:00:00.000Z",
+    };
+    const imported = person({
+      id: "imported",
+      email: "new@example.com",
+      name: "New User",
+      role: "Reviewer",
+      step: "background_check",
+      updatedAt: "2026-01-02T00:00:00.000Z",
+    });
+    importPeopleRequest.mockResolvedValueOnce({
+      created: 1,
+      updated: 1,
+      people: [updated, imported],
+    });
+    const file = new File(
+      [
+        "email,name,role,step\nexisting@example.com,Existing Updated,Lead,sent_contracts\nnew@example.com,New User,Reviewer,background_check\n",
+      ],
+      "people.csv",
+      { type: "text/csv" },
+    );
+
+    render(<Board initialPeople={[existing]} />);
+
+    await user.click(screen.getByRole("button", { name: "Upload CSV" }));
+    expect(screen.getByText("email,name,role,step")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("CSV file"), {
+      target: { files: [file] },
+    });
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Upload CSV",
+      }),
+    );
+
+    await waitFor(() =>
+      expect(importPeopleRequest).toHaveBeenCalledWith({
+        people: [
+          {
+            email: "existing@example.com",
+            name: "Existing Updated",
+            role: "Lead",
+            step: "sent_contracts",
+          },
+          {
+            email: "new@example.com",
+            name: "New User",
+            role: "Reviewer",
+            step: "background_check",
+          },
+        ],
+      }),
+    );
+    expect(screen.queryByText("Old Role")).not.toBeInTheDocument();
+    expect(await screen.findByText("Existing Updated")).toBeInTheDocument();
+    expect(screen.getByText("Lead")).toBeInTheDocument();
+    expect(screen.getByText("new@example.com")).toBeInTheDocument();
+    expect(toastMock.success).toHaveBeenCalledWith(
+      "Imported 2 users (1 new, 1 updated)",
+    );
   });
 
   it("rolls back failed single moves and deletes", async () => {

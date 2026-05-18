@@ -19,6 +19,7 @@ async function loadRoutes() {
     people: await import("./route"),
     person: await import("./[id]/route"),
     bulk: await import("./bulk/route"),
+    peopleImport: await import("./import/route"),
   };
 }
 
@@ -50,6 +51,7 @@ describe("/api/people", () => {
       jsonRequest("/api/people", {
         email: "PERSON@EXAMPLE.COM",
         name: " Person ",
+        role: " Reviewer ",
         step: "background_check",
       }),
     );
@@ -58,6 +60,7 @@ describe("/api/people", () => {
     await expect(body(created)).resolves.toMatchObject({
       email: "person@example.com",
       name: "Person",
+      role: "Reviewer",
       step: "background_check",
     });
 
@@ -110,6 +113,7 @@ describe("/api/people/[id]", () => {
       jsonRequest(`/api/people/${createdBody.id}`, {
         email: "updated@example.com",
         name: null,
+        role: "Lead",
         step: "sent_contracts",
       }),
       { params: Promise.resolve({ id: createdBody.id }) },
@@ -119,6 +123,7 @@ describe("/api/people/[id]", () => {
     expect(patchedBody).toMatchObject({
       id: createdBody.id,
       email: "updated@example.com",
+      role: "Lead",
       step: "sent_contracts",
     });
     expect(patchedBody).not.toHaveProperty("name");
@@ -263,6 +268,78 @@ describe("/api/people/bulk", () => {
     expect(missingStep.status).toBe(400);
     await expect(body(missingStep)).resolves.toEqual({
       error: "step is required when action is 'move'",
+    });
+  });
+});
+
+describe("/api/people/import", () => {
+  it("creates new people and updates existing emails with roles", async () => {
+    const { people, peopleImport } = await loadRoutes();
+    await people.POST(
+      jsonRequest("/api/people", {
+        email: "existing@example.com",
+        name: "Existing",
+        role: "Old Role",
+      }),
+    );
+
+    const imported = await peopleImport.POST(
+      jsonRequest("/api/people/import", {
+        people: [
+          {
+            email: "EXISTING@example.com",
+            name: "Existing Updated",
+            role: "Lead",
+            step: "sent_contracts",
+          },
+          {
+            email: "new@example.com",
+            name: "New Person",
+            role: "Reviewer",
+            step: "Eval + Interview",
+          },
+        ],
+      }),
+    );
+
+    expect(imported.status).toBe(200);
+    await expect(body(imported)).resolves.toMatchObject({
+      created: 1,
+      updated: 1,
+      people: [
+        {
+          email: "existing@example.com",
+          name: "Existing Updated",
+          role: "Lead",
+          step: "sent_contracts",
+        },
+        {
+          email: "new@example.com",
+          name: "New Person",
+          role: "Reviewer",
+          step: "eval",
+        },
+      ],
+    });
+  });
+
+  it("returns 400 for invalid import requests", async () => {
+    const { peopleImport } = await loadRoutes();
+
+    const invalidJson = await peopleImport.POST(
+      new Request("http://localhost/api/people/import", {
+        method: "POST",
+        body: "{",
+      }),
+    );
+    expect(invalidJson.status).toBe(400);
+
+    const invalidPayload = await peopleImport.POST(
+      jsonRequest("/api/people/import", { people: [] }),
+    );
+    expect(invalidPayload.status).toBe(400);
+    await expect(body(invalidPayload)).resolves.toEqual({
+      error: "Upload at least one person",
     });
   });
 });
