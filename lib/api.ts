@@ -1,6 +1,16 @@
 import type { Step } from "./steps";
 import type { Person } from "./types";
 
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 async function handle<T>(res: Response): Promise<T> {
   if (!res.ok) {
     let message = `Request failed (${res.status})`;
@@ -10,7 +20,7 @@ async function handle<T>(res: Response): Promise<T> {
     } catch {
       // ignore body parse errors
     }
-    throw new Error(message);
+    throw new ApiError(message, res.status);
   }
   return (await res.json()) as T;
 }
@@ -49,6 +59,7 @@ export async function deletePersonRequest(id: string): Promise<void> {
   const res = await fetch(`/api/people/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
+  if (res.status === 404) return;
   if (!res.ok) await handle<unknown>(res);
 }
 

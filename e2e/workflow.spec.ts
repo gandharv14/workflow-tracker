@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 const storeFile = join(process.cwd(), "test-results", "e2e-people.json");
@@ -7,6 +7,14 @@ const storeFile = join(process.cwd(), "test-results", "e2e-people.json");
 async function resetStore() {
   await mkdir(dirname(storeFile), { recursive: true });
   await writeFile(storeFile, "[]\n", "utf8");
+}
+
+async function readStorePeople() {
+  return JSON.parse(await readFile(storeFile, "utf8")) as Array<{
+    email: string;
+    name?: string;
+    step: string;
+  }>;
 }
 
 function cardEmail(page: Page, email: string) {
@@ -104,4 +112,45 @@ test("tracks people through the workflow", async ({ page }) => {
   await page.reload();
   await expect(cardEmail(page, "alicia@example.com")).toBeVisible();
   await expect(cardEmail(page, "bob@example.com")).toBeHidden();
+});
+
+test("recreates a deleted person, moves the new record, and persists after reload", async ({
+  page,
+}) => {
+  await page.goto("/");
+
+  await addPerson(page, {
+    email: "recreate@example.com",
+    name: "Original Candidate",
+  });
+  await expect(cardEmail(page, "recreate@example.com")).toBeVisible();
+
+  await openCardMenu(page, "recreate@example.com");
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await expect(page.getByText("Removed recreate@example.com")).toBeVisible();
+  await expect(cardEmail(page, "recreate@example.com")).toBeHidden();
+
+  await addPerson(page, {
+    email: "recreate@example.com",
+    name: "Recreated Candidate",
+  });
+  await expect(cardEmail(page, "recreate@example.com")).toBeVisible();
+  await expect(page.getByText("Recreated Candidate")).toBeVisible();
+
+  await openCardMenu(page, "recreate@example.com");
+  await page.getByRole("menuitem", { name: "Move to" }).hover();
+  await page.getByRole("menuitem", { name: "Sent Contracts" }).click();
+  await expect(page.getByText("Moved to Sent Contracts")).toBeVisible();
+
+  await page.reload();
+  await expect(cardEmail(page, "recreate@example.com")).toBeVisible();
+  await expect(page.getByText("Recreated Candidate")).toBeVisible();
+
+  const persisted = await readStorePeople();
+  expect(persisted).toHaveLength(1);
+  expect(persisted[0]).toMatchObject({
+    email: "recreate@example.com",
+    name: "Recreated Candidate",
+    step: "sent_contracts",
+  });
 });

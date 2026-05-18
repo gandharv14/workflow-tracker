@@ -45,6 +45,18 @@ function normalizePersonStep(person: Person): Person {
   return step === person.step ? person : { ...person, step };
 }
 
+function sameNormalizedEmail(left: string, right: string): boolean {
+  return left.trim().toLowerCase() === right.trim().toLowerCase();
+}
+
+function isNotFoundError(err: unknown): boolean {
+  return (
+    err instanceof Error &&
+    "status" in err &&
+    (err as { status?: unknown }).status === 404
+  );
+}
+
 export function Board({ initialPeople }: BoardProps) {
   const [people, setPeople] = React.useState<Person[]>(() =>
     initialPeople.map(normalizePersonStep),
@@ -126,6 +138,17 @@ export function Board({ initialPeople }: BoardProps) {
         setPeople((prev) => prev.map((p) => (p.id === id ? updated : p)));
         toast.success(`Moved to ${STEP_LABELS[step]}`);
       } catch (err) {
+        if (isNotFoundError(err)) {
+          setPeople((prev) => prev.filter((p) => p.id !== id));
+          setSelectedIds((prev) => {
+            if (!prev.has(id)) return prev;
+            const next = new Set(prev);
+            next.delete(id);
+            return next;
+          });
+          toast.error("Person no longer exists");
+          return;
+        }
         setPeople((prev) => prev.map((p) => (p.id === id ? previous : p)));
         toast.error(err instanceof Error ? err.message : "Failed to move");
       }
@@ -136,7 +159,10 @@ export function Board({ initialPeople }: BoardProps) {
   const handleAdd = React.useCallback(
     async (data: { email: string; name?: string; step: Step }) => {
       const created = normalizePersonStep(await createPerson(data));
-      setPeople((prev) => [...prev, created]);
+      setPeople((prev) => [
+        ...prev.filter((p) => !sameNormalizedEmail(p.email, created.email)),
+        created,
+      ]);
       if (trimmedQuery) {
         const createdHaystack = `${created.email} ${created.name ?? ""}`.toLowerCase();
         if (!createdHaystack.includes(trimmedQuery)) setQuery("");
@@ -170,7 +196,19 @@ export function Board({ initialPeople }: BoardProps) {
         await deletePersonRequest(id);
         toast.success(`Removed ${previous.email}`);
       } catch (err) {
-        setPeople((prev) => [...prev, previous]);
+        if (isNotFoundError(err)) {
+          toast.success(`Removed ${previous.email}`);
+          return;
+        }
+        setPeople((prev) =>
+          prev.some(
+            (p) =>
+              p.id === previous.id ||
+              sameNormalizedEmail(p.email, previous.email),
+          )
+            ? prev
+            : [...prev, previous],
+        );
         toast.error(err instanceof Error ? err.message : "Failed to delete");
       }
     },

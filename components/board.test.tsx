@@ -136,6 +136,59 @@ describe("Board", () => {
     expect(search).toHaveValue("");
   });
 
+  it("replaces stale same-email cards when a deleted person is recreated", async () => {
+    const user = userEvent.setup();
+    const stale = person({
+      id: "old-id",
+      email: "recreated@example.com",
+      name: "Old Record",
+      step: "eval",
+    });
+    const recreated = person({
+      id: "new-id",
+      email: "recreated@example.com",
+      name: "Recreated Record",
+      step: "eval",
+    });
+    createPerson.mockResolvedValueOnce(recreated);
+    patchPerson.mockResolvedValueOnce({
+      ...recreated,
+      step: "sent_contracts",
+    });
+
+    render(<Board initialPeople={[stale]} />);
+
+    await user.click(screen.getByRole("button", { name: /Add person/ }));
+    await user.type(screen.getByLabelText("Email"), "recreated@example.com");
+    await user.type(screen.getByLabelText(/Name/), "Recreated Record");
+    await user.click(screen.getByRole("button", { name: "Add person" }));
+
+    await waitFor(() =>
+      expect(createPerson).toHaveBeenCalledWith({
+        email: "recreated@example.com",
+        name: "Recreated Record",
+        step: "eval",
+      }),
+    );
+    expect(screen.getAllByLabelText("Open menu for recreated@example.com")).toHaveLength(
+      1,
+    );
+    expect(screen.queryByText("Old Record")).not.toBeInTheDocument();
+    expect(screen.getByText("Recreated Record")).toBeInTheDocument();
+
+    await user.click(screen.getByLabelText("Open menu for recreated@example.com"));
+    await user.click(screen.getByRole("button", { name: "Sent Contracts" }));
+
+    await waitFor(() =>
+      expect(patchPerson).toHaveBeenCalledWith("new-id", {
+        step: "sent_contracts",
+      }),
+    );
+    expect(patchPerson).not.toHaveBeenCalledWith("old-id", {
+      step: "sent_contracts",
+    });
+  });
+
   it("edits, moves by menu, and deletes a person optimistically", async () => {
     const user = userEvent.setup();
     const existing = person({
@@ -260,5 +313,54 @@ describe("Board", () => {
     if (evalColumn) {
       expect(within(evalColumn).getByText("1")).toBeInTheDocument();
     }
+  });
+
+  it("does not restore stale people when delete reports they are already missing", async () => {
+    const user = userEvent.setup();
+    const existing = person({
+      id: "missing-id",
+      email: "missing@example.com",
+      step: "eval",
+    });
+    deletePersonRequest.mockRejectedValueOnce(
+      Object.assign(new Error("Person not found"), { status: 404 }),
+    );
+
+    render(<Board initialPeople={[existing]} />);
+
+    await user.click(screen.getByLabelText("Open menu for missing@example.com"));
+    await user.click(await screen.findByText("Delete"));
+
+    await waitFor(() =>
+      expect(deletePersonRequest).toHaveBeenCalledWith("missing-id"),
+    );
+    expect(screen.queryByText("missing@example.com")).not.toBeInTheDocument();
+    expect(toastMock.success).toHaveBeenCalledWith("Removed missing@example.com");
+    expect(toastMock.error).not.toHaveBeenCalled();
+  });
+
+  it("removes stale cards when a move reports the person is missing", async () => {
+    const user = userEvent.setup();
+    const stale = person({
+      id: "stale-id",
+      email: "stale@example.com",
+      step: "eval",
+    });
+    patchPerson.mockRejectedValueOnce(
+      Object.assign(new Error("Person not found"), { status: 404 }),
+    );
+
+    render(<Board initialPeople={[stale]} />);
+
+    await user.click(screen.getByLabelText("Open menu for stale@example.com"));
+    await user.click(screen.getByRole("button", { name: "Sent Contracts" }));
+
+    await waitFor(() =>
+      expect(patchPerson).toHaveBeenCalledWith("stale-id", {
+        step: "sent_contracts",
+      }),
+    );
+    expect(screen.queryByText("stale@example.com")).not.toBeInTheDocument();
+    expect(toastMock.error).toHaveBeenCalledWith("Person no longer exists");
   });
 });

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  ApiError,
   bulkRequest,
   createPerson,
   deletePersonRequest,
@@ -78,9 +79,18 @@ describe("client API helpers", () => {
       }),
     );
 
-    await expect(createPerson({ email: "dupe@example.com" })).rejects.toThrow(
-      "A person with that email already exists",
+    await expect(createPerson({ email: "dupe@example.com" })).rejects.toMatchObject({
+      message: "A person with that email already exists",
+      status: 409,
+    } satisfies Partial<ApiError>);
+  });
+
+  it("treats deleting an already-missing person as success", async () => {
+    fetchMock.mockResolvedValueOnce(
+      Response.json({ error: "Person not found" }, { status: 404 }),
     );
+
+    await expect(deletePersonRequest("missing")).resolves.toBeUndefined();
   });
 
   it("falls back to the response status when the error body is not JSON", async () => {

@@ -131,6 +131,44 @@ describe("/api/people/[id]", () => {
     await expect(body(deleted)).resolves.toEqual({ ok: true });
   });
 
+  it("can recreate a deleted email and move the new person", async () => {
+    const { people, person } = await loadRoutes();
+    const created = await people.POST(
+      jsonRequest("/api/people", { email: "recreate@example.com" }),
+    );
+    const createdBody = (await created.json()) as { id: string };
+
+    const deleted = await person.DELETE(
+      new Request(`http://localhost/api/people/${createdBody.id}`),
+      { params: Promise.resolve({ id: createdBody.id }) },
+    );
+    expect(deleted.status).toBe(200);
+
+    const recreated = await people.POST(
+      jsonRequest("/api/people", { email: "recreate@example.com" }),
+    );
+    expect(recreated.status).toBe(201);
+    const recreatedBody = (await recreated.json()) as { id: string };
+    expect(recreatedBody.id).not.toBe(createdBody.id);
+
+    const moved = await person.PATCH(
+      jsonRequest(`/api/people/${recreatedBody.id}`, {
+        step: "sent_contracts",
+      }),
+      { params: Promise.resolve({ id: recreatedBody.id }) },
+    );
+    expect(moved.status).toBe(200);
+
+    const listed = await people.GET();
+    await expect(body(listed)).resolves.toMatchObject([
+      {
+        id: recreatedBody.id,
+        email: "recreate@example.com",
+        step: "sent_contracts",
+      },
+    ]);
+  });
+
   it("returns 400, 404, and 409 errors", async () => {
     const { people, person } = await loadRoutes();
     const one = await people.POST(
