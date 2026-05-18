@@ -6,9 +6,8 @@ import {
   head,
   put,
 } from "@vercel/blob";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import { nanoid } from "nanoid";
+import { basename, join } from "node:path";
 
 import type { Step } from "./steps";
 import type { Person } from "./types";
@@ -43,13 +42,18 @@ function shouldUseFileStore(): boolean {
 }
 
 function fileStorePath(): string {
-  return (
-    process.env.WORKFLOW_TRACKER_STORE_FILE ??
-    join(process.cwd(), ".workflow-tracker-store.json")
+  const fileName = basename(
+    process.env.WORKFLOW_TRACKER_STORE_FILE ?? ".workflow-tracker-store.json",
+  );
+  return join(
+    /*turbopackIgnore: true*/ process.cwd(),
+    "test-results",
+    fileName,
   );
 }
 
 async function readFileStore(): Promise<StoreSnapshot> {
+  const { readFile } = await import("node:fs/promises");
   try {
     const raw = await readFile(fileStorePath(), "utf8");
     return { people: parsePeople(raw), etag: null };
@@ -62,8 +66,9 @@ async function readFileStore(): Promise<StoreSnapshot> {
 }
 
 async function writeFileStore(people: Person[]): Promise<void> {
+  const { mkdir, writeFile } = await import("node:fs/promises");
   const target = fileStorePath();
-  await mkdir(dirname(target), { recursive: true });
+  await mkdir(join(process.cwd(), "test-results"), { recursive: true });
   await writeFile(target, JSON.stringify(people, null, 2) + "\n", "utf8");
 }
 

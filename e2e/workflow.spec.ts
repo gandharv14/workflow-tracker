@@ -9,6 +9,15 @@ async function resetStore() {
   await writeFile(storeFile, "[]\n", "utf8");
 }
 
+function cardEmail(page: Page, email: string) {
+  return page.locator(`[title="${email}"]`);
+}
+
+async function openCardMenu(page: Page, email: string) {
+  await page.getByLabel(`Open menu for ${email}`).focus();
+  await page.keyboard.press("Enter");
+}
+
 async function addPerson(
   page: Page,
   input: { email: string; name?: string; step?: string },
@@ -32,7 +41,7 @@ test("tracks people through the workflow", async ({ page }) => {
     email: "alice@example.com",
     name: "Alice Candidate",
   });
-  await expect(page.getByText("alice@example.com")).toBeVisible();
+  await expect(cardEmail(page, "alice@example.com")).toBeVisible();
 
   await addPerson(page, {
     email: "bob@example.com",
@@ -46,38 +55,38 @@ test("tracks people through the workflow", async ({ page }) => {
   await page.getByRole("button", { name: "Cancel" }).click();
 
   await page.getByLabel("Search people").fill("bob");
-  await expect(page.getByText("bob@example.com")).toBeVisible();
-  await expect(page.getByText("alice@example.com")).toBeHidden();
+  await expect(cardEmail(page, "bob@example.com")).toBeVisible();
+  await expect(cardEmail(page, "alice@example.com")).toBeHidden();
   await page.getByLabel("Clear search").click();
-  await expect(page.getByText("alice@example.com")).toBeVisible();
+  await expect(cardEmail(page, "alice@example.com")).toBeVisible();
 
-  await page.getByLabel("Open menu for alice@example.com").click();
-  await page.getByText("Edit").click();
+  await openCardMenu(page, "alice@example.com");
+  await page.getByRole("menuitem", { name: "Edit" }).click();
   await page.getByLabel("Email").fill("alicia@example.com");
   await page.getByLabel(/Name/).fill("Alicia Candidate");
   await page.getByRole("button", { name: "Save changes" }).click();
-  await expect(page.getByText("alicia@example.com")).toBeVisible();
+  await expect(cardEmail(page, "alicia@example.com")).toBeVisible();
   await expect(page.getByText("Alicia Candidate")).toBeVisible();
 
-  await page.getByLabel("Open menu for alicia@example.com").click();
-  await page.getByText("Move to").hover();
-  await page.getByText("Background Check").click();
+  await openCardMenu(page, "alicia@example.com");
+  await page.getByRole("menuitem", { name: "Move to" }).hover();
+  await page.getByRole("menuitem", { name: "Background Check" }).click();
   await expect(page.getByText("Moved to Background Check")).toBeVisible();
 
   await page.getByLabel("Select alicia@example.com").click();
   await page.getByLabel("Select bob@example.com").click();
   await expect(page.getByText("2 selected")).toBeVisible();
   await page.getByRole("button", { name: /Move to/ }).click();
-  await page.getByText("Gmail Creation").click();
+  await page.getByRole("menuitem", { name: "Gmail Creation" }).click();
   await expect(page.getByText("Moved 2 to Gmail Creation")).toBeVisible();
   await expect(page.getByText("2 selected")).toBeHidden();
 
   await page.getByLabel("Select bob@example.com").click();
   await page.getByRole("button", { name: /Delete/ }).click();
   await expect(page.getByText("Removed 1 people")).toBeVisible();
-  await expect(page.getByText("bob@example.com")).toBeHidden();
+  await expect(cardEmail(page, "bob@example.com")).toBeHidden();
 
   await page.reload();
-  await expect(page.getByText("alicia@example.com")).toBeVisible();
-  await expect(page.getByText("bob@example.com")).toBeHidden();
+  await expect(cardEmail(page, "alicia@example.com")).toBeVisible();
+  await expect(cardEmail(page, "bob@example.com")).toBeHidden();
 });

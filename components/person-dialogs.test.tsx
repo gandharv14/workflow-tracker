@@ -70,7 +70,11 @@ describe("AddPersonDialog", () => {
 
     await user.type(screen.getByLabelText("Email"), "person@example.com");
     await user.click(screen.getByRole("button", { name: "Add person" }));
-    expect(screen.getByRole("button", { name: "Adding..." })).toBeDisabled();
+    const loadingButton = screen.getByRole("button", {
+      name: "Adding to queue...",
+    });
+    expect(loadingButton).toBeDisabled();
+    expect(loadingButton.querySelector("svg")).toHaveClass("animate-spin");
     pending.resolve();
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));

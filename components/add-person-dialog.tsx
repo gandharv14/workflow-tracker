@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Loader2Icon } from "lucide-react";
 
 import {
   Dialog,
@@ -82,7 +83,7 @@ function AddPersonForm({
           Track a new person in the workflow. Email is required and must be unique.
         </DialogDescription>
       </DialogHeader>
-      <form className="grid gap-3" onSubmit={handleSubmit}>
+      <form className="grid gap-3" onSubmit={handleSubmit} aria-busy={submitting}>
         <div className="grid gap-1.5">
           <Label htmlFor="add-email">Email</Label>
           <Input
@@ -95,6 +96,7 @@ function AddPersonForm({
             autoFocus
             required
             aria-invalid={email.length > 0 && !validEmail}
+            disabled={submitting}
           />
         </div>
         <div className="grid gap-1.5">
@@ -108,6 +110,7 @@ function AddPersonForm({
             autoComplete="off"
             value={name}
             onChange={(e) => setName(e.target.value)}
+            disabled={submitting}
           />
         </div>
         <div className="grid gap-1.5">
@@ -117,6 +120,7 @@ function AddPersonForm({
             value={step}
             onChange={(e) => setStep(e.target.value as Step)}
             className="h-8 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
+            disabled={submitting}
           >
             {STEP_ORDER.map((s) => (
               <option key={s} value={s}>
@@ -136,7 +140,14 @@ function AddPersonForm({
             Cancel
           </Button>
           <Button type="submit" disabled={!validEmail || submitting}>
-            {submitting ? "Adding..." : "Add person"}
+            {submitting ? (
+              <>
+                <Loader2Icon className="size-4 animate-spin" aria-hidden="true" />
+                Adding to queue...
+              </>
+            ) : (
+              "Add person"
+            )}
           </Button>
         </DialogFooter>
       </form>

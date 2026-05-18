@@ -276,6 +276,7 @@ export function Board({ initialPeople }: BoardProps) {
 
       <main className="flex-1 px-4 py-4 sm:px-6">
         <DndContext
+          id="workflow-board-dnd"
           sensors={sensors}
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}

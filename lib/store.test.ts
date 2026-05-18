@@ -1,11 +1,10 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Step } from "./steps";
 
-let dir: string;
 let file: string;
 
 async function loadStore() {
@@ -14,10 +13,11 @@ async function loadStore() {
 }
 
 beforeEach(async () => {
-  dir = await mkdtemp(join(tmpdir(), "workflow-store-"));
-  file = join(dir, "people.json");
+  const fileName = `store-${randomUUID()}.json`;
+  file = join(process.cwd(), "test-results", fileName);
+  await mkdir(join(process.cwd(), "test-results"), { recursive: true });
   process.env.WORKFLOW_TRACKER_STORE = "file";
-  process.env.WORKFLOW_TRACKER_STORE_FILE = file;
+  process.env.WORKFLOW_TRACKER_STORE_FILE = fileName;
 });
 
 afterEach(async () => {
@@ -25,7 +25,7 @@ afterEach(async () => {
   delete process.env.WORKFLOW_TRACKER_STORE_FILE;
   vi.unstubAllGlobals();
   vi.doUnmock("@vercel/blob");
-  await rm(dir, { recursive: true, force: true });
+  await rm(file, { force: true });
 });
 
 describe("file-backed store", () => {

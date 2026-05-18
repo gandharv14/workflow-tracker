@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 import { join } from "node:path";
 
 const port = Number(process.env.PORT ?? 3100);
-const baseURL = `http://127.0.0.1:${port}`;
+const baseURL = `http://localhost:${port}`;
 const storeFile = join(process.cwd(), "test-results", "e2e-people.json");
 
 export default defineConfig({
