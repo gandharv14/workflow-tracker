@@ -1,5 +1,6 @@
 export const STEP_ORDER = [
   "eval",
+  "interview",
   "background_check",
   "sent_contracts",
   "in_production",
@@ -8,14 +9,16 @@ export const STEP_ORDER = [
 export type Step = (typeof STEP_ORDER)[number];
 
 export const STEP_LABELS: Record<Step, string> = {
-  eval: "Eval + Interview",
+  eval: "Eval",
+  interview: "Interview",
   background_check: "Background Check + Gmail Creation",
   sent_contracts: "Sent Contracts",
   in_production: "In Production",
 };
 
 export const STEP_DESCRIPTIONS: Record<Step, string> = {
-  eval: "Evaluation, screening, and interview round",
+  eval: "Initial evaluation and screening",
+  interview: "Interview round",
   background_check: "Background verification and Gmail provisioning",
   sent_contracts: "Contract sent, awaiting signature",
   in_production: "Live and working",
@@ -31,6 +34,12 @@ export const STEP_COLORS: Record<
     bg: "bg-slate-50 dark:bg-slate-900/40",
     text: "text-slate-700 dark:text-slate-200",
     dot: "bg-slate-400",
+  },
+  interview: {
+    ring: "ring-sky-300/60 dark:ring-sky-700/60",
+    bg: "bg-sky-50 dark:bg-sky-950/40",
+    text: "text-sky-700 dark:text-sky-200",
+    dot: "bg-sky-500",
   },
   background_check: {
     ring: "ring-amber-300/60 dark:ring-amber-700/60",
@@ -63,7 +72,13 @@ export function normalizeStep(value: unknown): Step | null {
   if (typeof value !== "string") return null;
   const normalized = value.trim().toLowerCase().replace(/\s+/g, "_");
   if (isStep(normalized)) return normalized;
-  if (normalized === "interview") return "eval";
+  if (
+    normalized === "eval_+_interview" ||
+    normalized === "eval+interview" ||
+    normalized === "eval_interview"
+  ) {
+    return "eval";
+  }
   if (normalized === "gmail_creation") return "background_check";
   for (const step of STEP_ORDER) {
     if (STEP_LABELS[step].toLowerCase().replace(/\s+/g, "_") === normalized) {

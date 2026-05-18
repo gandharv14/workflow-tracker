@@ -45,7 +45,7 @@ describe("file-backed store", () => {
         {
           id: "one",
           email: "one@example.com",
-          step: "interview",
+          step: "Eval + Interview",
           createdAt: "2026-01-01T00:00:00.000Z",
           updatedAt: "2026-01-01T00:00:00.000Z",
         },

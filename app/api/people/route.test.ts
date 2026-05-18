@@ -296,7 +296,7 @@ describe("/api/people/import", () => {
             email: "new@example.com",
             name: "New Person",
             role: "Reviewer",
-            step: "Eval + Interview",
+            step: "Interview",
           },
         ],
       }),
@@ -317,7 +317,7 @@ describe("/api/people/import", () => {
           email: "new@example.com",
           name: "New Person",
           role: "Reviewer",
-          step: "eval",
+          step: "interview",
         },
       ],
     });

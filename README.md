@@ -2,10 +2,11 @@
 
 A kanban-style board to track people through a multi-stage workflow:
 
-1. **Eval + Interview** — initial evaluation, screening, and interview round
-2. **Background Check** — background verification and Gmail account provisioning
-3. **Sent Contracts** — contract sent, awaiting signature
-4. **In Production** — live and working
+1. **Eval** — initial evaluation and screening
+2. **Interview** — interview round
+3. **Background Check** — background verification and Gmail account provisioning
+4. **Sent Contracts** — contract sent, awaiting signature
+5. **In Production** — live and working
 
 Email is the unique identifier, name is optional. Drag cards between columns, select multiple cards for bulk moves, and search across the whole board.
 
@@ -54,7 +55,7 @@ vercel --prod
 | DELETE | `/api/people/[id]`    | —                                                    | Delete a person                      |
 | POST   | `/api/people/bulk`    | `{ action: "move" \| "delete", ids[], step? }`       | Bulk move or delete                  |
 
-Steps: `eval`, `background_check`, `sent_contracts`, `in_production`.
+Steps: `eval`, `interview`, `background_check`, `sent_contracts`, `in_production`.
 
 ## File layout
 

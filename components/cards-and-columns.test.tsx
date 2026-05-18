@@ -87,12 +87,12 @@ describe("Column", () => {
       />,
     );
 
-    expect(screen.getByText("Eval + Interview")).toBeInTheDocument();
+    expect(screen.getByText("Eval")).toBeInTheDocument();
     expect(screen.getByText("1/3")).toBeInTheDocument();
     expect(screen.getByText("p1@example.com")).toBeInTheDocument();
-    await user.click(screen.getByLabelText("Add to Eval + Interview"));
+    await user.click(screen.getByLabelText("Add to Eval"));
     expect(onAddHere).toHaveBeenCalledWith("eval");
-    await user.click(screen.getByLabelText("Download Eval + Interview CSV"));
+    await user.click(screen.getByLabelText("Download Eval CSV"));
     expect(onDownload).toHaveBeenCalledWith("eval");
 
     rerender(

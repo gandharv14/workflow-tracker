@@ -63,7 +63,7 @@ describe("Board", () => {
       <Board initialPeople={[older, ada, newer]} />,
     );
 
-    expect(screen.getByText("3 people across 4 stages")).toBeInTheDocument();
+    expect(screen.getByText("3 people across 5 stages")).toBeInTheDocument();
     expect(container.textContent?.indexOf("newer@example.com")).toBeLessThan(
       container.textContent?.indexOf("older@example.com") ?? Infinity,
     );
@@ -434,7 +434,7 @@ describe("Board", () => {
     );
     expect(screen.getByText("rollback@example.com")).toBeInTheDocument();
 
-    const evalColumn = screen.getByText("Eval + Interview").closest("div");
+    const evalColumn = screen.getByText("Eval").closest("div");
     expect(evalColumn).not.toBeNull();
     if (evalColumn) {
       expect(within(evalColumn).getByText("1")).toBeInTheDocument();

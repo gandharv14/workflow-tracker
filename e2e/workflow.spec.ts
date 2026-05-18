@@ -63,7 +63,7 @@ test("tracks people through the workflow", async ({ page }) => {
     name: "Bob Candidate",
     step: "background_check",
   });
-  await expect(page.getByText("3 people across 4 stages")).toBeVisible();
+  await expect(page.getByText("3 people across 5 stages")).toBeVisible();
 
   await addPerson(page, { email: "ALICE@example.com" });
   await expect(page.getByText("A person with that email already exists")).toBeVisible();

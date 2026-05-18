@@ -7,7 +7,7 @@ describe("parsePeopleCsv", () => {
   it("parses people, roles, quoted values, and workflow labels", () => {
     expect(
       parsePeopleCsv(
-        'email,name,role,step\njane@example.com,"Jane, Doe",Reviewer,Eval + Interview\nsam@example.com,Sam,Ops Lead,sent_contracts\n',
+        'email,name,role,step\njane@example.com,"Jane, Doe",Reviewer,Eval + Interview\nsam@example.com,Sam,Ops Lead,Interview\n',
       ),
     ).toEqual([
       {
@@ -20,7 +20,7 @@ describe("parsePeopleCsv", () => {
         email: "sam@example.com",
         name: "Sam",
         role: "Ops Lead",
-        step: "sent_contracts",
+        step: "interview",
       },
     ]);
   });
@@ -30,7 +30,7 @@ describe("parsePeopleCsv", () => {
       "CSV must include an email column",
     );
     expect(() => parsePeopleCsv("email,step\njane@example.com,done\n")).toThrow(
-      "Row 2: step must be one of eval, background_check, sent_contracts, in_production",
+      "Row 2: step must be one of eval, interview, background_check, sent_contracts, in_production",
     );
   });
 });

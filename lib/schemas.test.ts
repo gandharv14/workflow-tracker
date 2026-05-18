@@ -24,11 +24,18 @@ describe("createPersonSchema", () => {
     });
   });
 
-  it("normalizes legacy combined-step values", () => {
+  it("accepts interview and normalizes legacy combined-step values", () => {
     expect(
       createPersonSchema.parse({
         email: "person@example.com",
         step: "interview",
+      }).step,
+    ).toBe("interview");
+
+    expect(
+      createPersonSchema.parse({
+        email: "person@example.com",
+        step: "Eval + Interview",
       }).step,
     ).toBe("eval");
   });
