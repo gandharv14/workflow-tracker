@@ -23,7 +23,7 @@ describe("AddPersonDialog", () => {
     render(
       <AddPersonDialog
         open
-        initialStep="interview"
+        initialStep="background_check"
         onOpenChange={onOpenChange}
         onSubmit={onSubmit}
       />,
@@ -37,10 +37,10 @@ describe("AddPersonDialog", () => {
     await user.clear(screen.getByLabelText("Email"));
     await user.type(screen.getByLabelText("Email"), "person@example.com");
     await user.type(screen.getByLabelText(/Name/), "Jane Doe");
-    expect(screen.getByLabelText("Workflow step")).toHaveValue("interview");
+    expect(screen.getByLabelText("Workflow step")).toHaveValue("background_check");
     await user.selectOptions(
       screen.getByLabelText("Workflow step"),
-      "gmail_creation",
+      "sent_contracts",
     );
     await user.click(screen.getByRole("button", { name: "Add person" }));
 
@@ -48,7 +48,7 @@ describe("AddPersonDialog", () => {
       expect(onSubmit).toHaveBeenCalledWith({
         email: "person@example.com",
         name: "Jane Doe",
-        step: "gmail_creation",
+        step: "sent_contracts",
       });
     });
     expect(onOpenChange).toHaveBeenCalledWith(false);

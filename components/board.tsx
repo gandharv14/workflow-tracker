@@ -27,15 +27,28 @@ import {
   deletePersonRequest,
   patchPerson,
 } from "@/lib/api";
-import { STEP_LABELS, STEP_ORDER, type Step } from "@/lib/steps";
+import { normalizeStep, STEP_LABELS, STEP_ORDER, type Step } from "@/lib/steps";
 import type { Person } from "@/lib/types";
 
 type BoardProps = {
   initialPeople: Person[];
 };
 
+function makeStepRecord<T>(createValue: () => T): Record<Step, T> {
+  return Object.fromEntries(
+    STEP_ORDER.map((step) => [step, createValue()]),
+  ) as Record<Step, T>;
+}
+
+function normalizePersonStep(person: Person): Person {
+  const step = normalizeStep(person.step) ?? "eval";
+  return step === person.step ? person : { ...person, step };
+}
+
 export function Board({ initialPeople }: BoardProps) {
-  const [people, setPeople] = React.useState<Person[]>(initialPeople);
+  const [people, setPeople] = React.useState<Person[]>(() =>
+    initialPeople.map(normalizePersonStep),
+  );
   const [query, setQuery] = React.useState("");
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(
     () => new Set(),
@@ -68,15 +81,8 @@ export function Board({ initialPeople }: BoardProps) {
   }, [people, trimmedQuery]);
 
   const peopleByStep = React.useMemo(() => {
-    const groups: Record<Step, Person[]> = {
-      eval: [],
-      interview: [],
-      background_check: [],
-      gmail_creation: [],
-      sent_contracts: [],
-      in_production: [],
-    };
-    for (const p of filteredPeople) groups[p.step].push(p);
+    const groups = makeStepRecord<Person[]>(() => []);
+    for (const p of filteredPeople) groups[normalizeStep(p.step) ?? "eval"].push(p);
     for (const s of STEP_ORDER) {
       groups[s].sort(
         (a, b) =>
@@ -87,15 +93,8 @@ export function Board({ initialPeople }: BoardProps) {
   }, [filteredPeople]);
 
   const totalsByStep = React.useMemo(() => {
-    const totals: Record<Step, number> = {
-      eval: 0,
-      interview: 0,
-      background_check: 0,
-      gmail_creation: 0,
-      sent_contracts: 0,
-      in_production: 0,
-    };
-    for (const p of people) totals[p.step] += 1;
+    const totals = makeStepRecord(() => 0);
+    for (const p of people) totals[normalizeStep(p.step) ?? "eval"] += 1;
     return totals;
   }, [people]);
 
@@ -123,7 +122,7 @@ export function Board({ initialPeople }: BoardProps) {
       };
       setPeople((prev) => prev.map((p) => (p.id === id ? optimistic : p)));
       try {
-        const updated = await patchPerson(id, { step });
+        const updated = normalizePersonStep(await patchPerson(id, { step }));
         setPeople((prev) => prev.map((p) => (p.id === id ? updated : p)));
         toast.success(`Moved to ${STEP_LABELS[step]}`);
       } catch (err) {
@@ -136,16 +135,20 @@ export function Board({ initialPeople }: BoardProps) {
 
   const handleAdd = React.useCallback(
     async (data: { email: string; name?: string; step: Step }) => {
-      const created = await createPerson(data);
+      const created = normalizePersonStep(await createPerson(data));
       setPeople((prev) => [...prev, created]);
+      if (trimmedQuery) {
+        const createdHaystack = `${created.email} ${created.name ?? ""}`.toLowerCase();
+        if (!createdHaystack.includes(trimmedQuery)) setQuery("");
+      }
       toast.success(`Added ${created.email}`);
     },
-    [],
+    [trimmedQuery],
   );
 
   const handleEditSubmit = React.useCallback(
     async (id: string, patch: { email: string; name: string | null }) => {
-      const updated = await patchPerson(id, patch);
+      const updated = normalizePersonStep(await patchPerson(id, patch));
       setPeople((prev) => prev.map((p) => (p.id === id ? updated : p)));
       toast.success("Updated");
     },
@@ -281,7 +284,7 @@ export function Board({ initialPeople }: BoardProps) {
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
         >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {STEP_ORDER.map((step) => (
               <Column
                 key={step}

@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Workflow Tracker",
   description:
-    "Track people through Eval, Interview, Background Check, Gmail Creation, and Production.",
+    "Track people through Eval + Interview, Background Check + Gmail Creation, Sent Contracts, and Production.",
 };
 
 export default function RootLayout({

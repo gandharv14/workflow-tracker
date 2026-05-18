@@ -50,7 +50,7 @@ describe("/api/people", () => {
       jsonRequest("/api/people", {
         email: "PERSON@EXAMPLE.COM",
         name: " Person ",
-        step: "interview",
+        step: "background_check",
       }),
     );
 
@@ -58,7 +58,7 @@ describe("/api/people", () => {
     await expect(body(created)).resolves.toMatchObject({
       email: "person@example.com",
       name: "Person",
-      step: "interview",
+      step: "background_check",
     });
 
     const listed = await people.GET();
@@ -152,7 +152,7 @@ describe("/api/people/[id]", () => {
     expect(invalidJson.status).toBe(400);
 
     const notFound = await person.PATCH(
-      jsonRequest("/api/people/missing", { step: "interview" }),
+      jsonRequest("/api/people/missing", { step: "background_check" }),
       { params: Promise.resolve({ id: "missing" }) },
     );
     expect(notFound.status).toBe(404);
@@ -187,14 +187,14 @@ describe("/api/people/bulk", () => {
       jsonRequest("/api/people/bulk", {
         action: "move",
         ids: [oneBody.id, twoBody.id],
-        step: "gmail_creation",
+        step: "background_check",
       }),
     );
     expect(moved.status).toBe(200);
     await expect(body(moved)).resolves.toMatchObject({
       updated: [
-        { id: oneBody.id, step: "gmail_creation" },
-        { id: twoBody.id, step: "gmail_creation" },
+        { id: oneBody.id, step: "background_check" },
+        { id: twoBody.id, step: "background_check" },
       ],
     });
 

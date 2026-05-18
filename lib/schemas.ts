@@ -1,7 +1,10 @@
 import { z } from "zod";
-import { STEP_ORDER } from "./steps";
+import { normalizeStep, STEP_ORDER } from "./steps";
 
-export const stepSchema = z.enum(STEP_ORDER as unknown as [string, ...string[]]);
+export const stepSchema = z.preprocess(
+  (value) => normalizeStep(value) ?? value,
+  z.enum(STEP_ORDER as unknown as [string, ...string[]]),
+);
 
 export const createPersonSchema = z.object({
   email: z

@@ -14,8 +14,7 @@ function cardEmail(page: Page, email: string) {
 }
 
 async function openCardMenu(page: Page, email: string) {
-  await page.getByLabel(`Open menu for ${email}`).focus();
-  await page.keyboard.press("Enter");
+  await page.getByLabel(`Open menu for ${email}`).click();
 }
 
 async function addPerson(
@@ -43,12 +42,20 @@ test("tracks people through the workflow", async ({ page }) => {
   });
   await expect(cardEmail(page, "alice@example.com")).toBeVisible();
 
+  await page.getByLabel("Search people").fill("alice");
+  await addPerson(page, {
+    email: "charlie@example.com",
+    name: "Charlie Candidate",
+  });
+  await expect(cardEmail(page, "charlie@example.com")).toBeVisible();
+  await expect(page.getByLabel("Search people")).toHaveValue("");
+
   await addPerson(page, {
     email: "bob@example.com",
     name: "Bob Candidate",
-    step: "interview",
+    step: "background_check",
   });
-  await expect(page.getByText("2 people across 6 stages")).toBeVisible();
+  await expect(page.getByText("3 people across 4 stages")).toBeVisible();
 
   await addPerson(page, { email: "ALICE@example.com" });
   await expect(page.getByText("A person with that email already exists")).toBeVisible();
@@ -70,15 +77,23 @@ test("tracks people through the workflow", async ({ page }) => {
 
   await openCardMenu(page, "alicia@example.com");
   await page.getByRole("menuitem", { name: "Move to" }).hover();
-  await page.getByRole("menuitem", { name: "Background Check" }).click();
-  await expect(page.getByText("Moved to Background Check")).toBeVisible();
+  await page
+    .getByRole("menuitem", { name: "Background Check + Gmail Creation" })
+    .click();
+  await expect(
+    page.getByText("Moved to Background Check + Gmail Creation"),
+  ).toBeVisible();
 
   await page.getByLabel("Select alicia@example.com").click();
   await page.getByLabel("Select bob@example.com").click();
   await expect(page.getByText("2 selected")).toBeVisible();
   await page.getByRole("button", { name: /Move to/ }).click();
-  await page.getByRole("menuitem", { name: "Gmail Creation" }).click();
-  await expect(page.getByText("Moved 2 to Gmail Creation")).toBeVisible();
+  await page
+    .getByRole("menuitem", { name: "Background Check + Gmail Creation" })
+    .click();
+  await expect(
+    page.getByText("Moved 2 to Background Check + Gmail Creation"),
+  ).toBeVisible();
   await expect(page.getByText("2 selected")).toBeHidden();
 
   await page.getByLabel("Select bob@example.com").click();

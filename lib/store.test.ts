@@ -38,6 +38,35 @@ describe("file-backed store", () => {
     await expect(listPeople()).resolves.toEqual([]);
   });
 
+  it("normalizes legacy persisted workflow steps", async () => {
+    await writeFile(
+      file,
+      JSON.stringify([
+        {
+          id: "one",
+          email: "one@example.com",
+          step: "interview",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+        {
+          id: "two",
+          email: "two@example.com",
+          step: "gmail_creation",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ]),
+      "utf8",
+    );
+    const { listPeople } = await loadStore();
+
+    await expect(listPeople()).resolves.toMatchObject([
+      { id: "one", step: "eval" },
+      { id: "two", step: "background_check" },
+    ]);
+  });
+
   it("adds people with normalized email, trimmed name, timestamps, and a default step", async () => {
     const { addPerson, listPeople } = await loadStore();
 
@@ -83,14 +112,14 @@ describe("file-backed store", () => {
       updatePerson(first.person.id, {
         email: " renamed@example.com ",
         name: null,
-        step: "interview",
+        step: "background_check",
       }),
     ).resolves.toMatchObject({
       ok: true,
       person: {
         email: "renamed@example.com",
         name: undefined,
-        step: "interview",
+        step: "background_check",
       },
     });
 
@@ -121,7 +150,7 @@ describe("file-backed store", () => {
     const two = await addPerson({ email: "two@example.com", step: "eval" });
     const three = await addPerson({
       email: "three@example.com",
-      step: "interview",
+      step: "sent_contracts",
     });
     if (!one.ok || !two.ok || !three.ok) throw new Error("fixtures failed");
 

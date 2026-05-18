@@ -83,10 +83,10 @@ describe("Column", () => {
       />,
     );
 
-    expect(screen.getByText("Eval")).toBeInTheDocument();
+    expect(screen.getByText("Eval + Interview")).toBeInTheDocument();
     expect(screen.getByText("1/3")).toBeInTheDocument();
     expect(screen.getByText("p1@example.com")).toBeInTheDocument();
-    await user.click(screen.getByLabelText("Add to Eval"));
+    await user.click(screen.getByLabelText("Add to Eval + Interview"));
     expect(onAddHere).toHaveBeenCalledWith("eval");
 
     rerender(
@@ -151,8 +151,8 @@ describe("BulkActionBar", () => {
     expect(screen.getByText("2 selected")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Move to/ }));
-    await user.click(await screen.findByText("Interview"));
-    await waitFor(() => expect(onMove).toHaveBeenCalledWith("interview"));
+    await user.click(await screen.findByText("Sent Contracts"));
+    await waitFor(() => expect(onMove).toHaveBeenCalledWith("sent_contracts"));
 
     await user.click(screen.getByRole("button", { name: /Delete/ }));
     expect(onDelete).toHaveBeenCalled();

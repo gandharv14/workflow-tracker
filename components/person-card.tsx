@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   DropdownMenu,
@@ -116,14 +117,23 @@ export function PersonCard({
 
       <DropdownMenu>
         <DropdownMenuTrigger
-          className={cn(
-            "shrink-0 rounded p-1 text-muted-foreground/70 hover:bg-accent hover:text-foreground",
-            "opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 focus:opacity-100",
-          )}
-          aria-label={`Open menu for ${person.email}`}
-        >
-          <MoreVerticalIcon className="size-4" />
-        </DropdownMenuTrigger>
+          render={
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className={cn(
+                "shrink-0 text-muted-foreground/70 hover:bg-accent hover:text-foreground",
+                "opacity-0 group-hover:opacity-100 data-[popup-open]:opacity-100 focus:opacity-100",
+              )}
+              aria-label={`Open menu for ${person.email}`}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => event.stopPropagation()}
+            >
+              <MoreVerticalIcon className="size-4" />
+            </Button>
+          }
+        />
         <DropdownMenuContent align="end" className="w-44">
           <DropdownMenuLabel className="text-xs text-muted-foreground">
             {person.email}

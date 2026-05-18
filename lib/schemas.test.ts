@@ -7,14 +7,23 @@ describe("createPersonSchema", () => {
     const result = createPersonSchema.parse({
       email: "  JANE@EXAMPLE.COM ",
       name: " Jane Doe ",
-      step: "interview",
+      step: "background_check",
     });
 
     expect(result).toEqual({
       email: "JANE@EXAMPLE.COM",
       name: "Jane Doe",
-      step: "interview",
+      step: "background_check",
     });
+  });
+
+  it("normalizes legacy combined-step values", () => {
+    expect(
+      createPersonSchema.parse({
+        email: "person@example.com",
+        step: "interview",
+      }).step,
+    ).toBe("eval");
   });
 
   it("turns a blank name into undefined", () => {
@@ -76,13 +85,21 @@ describe("bulkSchema", () => {
       bulkSchema.parse({
         action: "move",
         ids: ["one", "two"],
-        step: "gmail_creation",
+        step: "background_check",
       }),
     ).toEqual({
       action: "move",
       ids: ["one", "two"],
-      step: "gmail_creation",
+      step: "background_check",
     });
+
+    expect(
+      bulkSchema.parse({
+        action: "move",
+        ids: ["one"],
+        step: "gmail_creation",
+      }).step,
+    ).toBe("background_check");
 
     expect(bulkSchema.parse({ action: "delete", ids: ["one"] })).toEqual({
       action: "delete",

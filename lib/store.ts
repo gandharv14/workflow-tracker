@@ -9,7 +9,7 @@ import {
 import { nanoid } from "nanoid";
 import { basename, join } from "node:path";
 
-import type { Step } from "./steps";
+import { normalizeStep, type Step } from "./steps";
 import type { Person } from "./types";
 
 const BLOB_KEY = "people.json";
@@ -31,7 +31,11 @@ function parsePeople(raw: string): Person[] {
   if (!raw.trim()) return [];
   try {
     const parsed = JSON.parse(raw) as Person[];
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((person) => ({
+      ...person,
+      step: normalizeStep(person.step) ?? "eval",
+    }));
   } catch {
     return [];
   }
@@ -164,11 +168,12 @@ export function addPerson(input: {
         };
       }
       const now = new Date().toISOString();
+      const step = normalizeStep(input.step) ?? "eval";
       const person: Person = {
         id: nanoid(10),
         email,
         name: input.name?.trim() || undefined,
-        step: input.step ?? "eval",
+        step,
         createdAt: now,
         updatedAt: now,
       };
@@ -223,7 +228,10 @@ export function updatePerson(
         ...current,
         email: nextEmail,
         name: nextName,
-        step: patch.step ?? current.step,
+        step:
+          patch.step !== undefined
+            ? normalizeStep(patch.step) ?? current.step
+            : current.step,
         updatedAt: new Date().toISOString(),
       };
       const nextPeople = people.slice();
@@ -254,6 +262,7 @@ export function bulkMove(
 ): Promise<{ updated: Person[] }> {
   return withLock(() =>
     mutate(async (people) => {
+      const targetStep = normalizeStep(step) ?? "eval";
       const idSet = new Set(ids);
       const now = new Date().toISOString();
       const updated: Person[] = [];
@@ -261,8 +270,8 @@ export function bulkMove(
       let mutated = false;
       for (let i = 0; i < nextPeople.length; i += 1) {
         if (!idSet.has(nextPeople[i].id)) continue;
-        if (nextPeople[i].step !== step) {
-          nextPeople[i] = { ...nextPeople[i], step, updatedAt: now };
+        if (nextPeople[i].step !== targetStep) {
+          nextPeople[i] = { ...nextPeople[i], step: targetStep, updatedAt: now };
           mutated = true;
         }
         updated.push(nextPeople[i]);

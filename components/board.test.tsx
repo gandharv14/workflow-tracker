@@ -50,14 +50,14 @@ describe("Board", () => {
       id: "ada",
       email: "ada@example.com",
       name: "Ada Lovelace",
-      step: "interview",
+      step: "background_check",
     });
 
     const { container } = render(
       <Board initialPeople={[older, ada, newer]} />,
     );
 
-    expect(screen.getByText("3 people across 6 stages")).toBeInTheDocument();
+    expect(screen.getByText("3 people across 4 stages")).toBeInTheDocument();
     expect(container.textContent?.indexOf("newer@example.com")).toBeLessThan(
       container.textContent?.indexOf("older@example.com") ?? Infinity,
     );
@@ -77,7 +77,7 @@ describe("Board", () => {
       id: "created",
       email: "created@example.com",
       name: "Created Person",
-      step: "interview",
+      step: "background_check",
     });
     createPerson.mockResolvedValueOnce(created);
 
@@ -87,14 +87,14 @@ describe("Board", () => {
     await user.click(screen.getAllByRole("button", { name: /Add person/ })[0]);
     await user.type(screen.getByLabelText("Email"), "created@example.com");
     await user.type(screen.getByLabelText(/Name/), "Created Person");
-    await user.selectOptions(screen.getByLabelText("Workflow step"), "interview");
+    await user.selectOptions(screen.getByLabelText("Workflow step"), "background_check");
     await user.click(screen.getByRole("button", { name: "Add person" }));
 
     await waitFor(() => {
       expect(createPerson).toHaveBeenCalledWith({
         email: "created@example.com",
         name: "Created Person",
-        step: "interview",
+        step: "background_check",
       });
     });
     expect(await screen.findByText("created@example.com")).toBeInTheDocument();
@@ -105,6 +105,35 @@ describe("Board", () => {
     await user.type(screen.getByLabelText("Email"), "created@example.com");
     await user.click(screen.getByRole("button", { name: "Add person" }));
     expect(await screen.findByText("Duplicate email")).toBeInTheDocument();
+  });
+
+  it("reveals a newly added person when the current search would hide them", async () => {
+    const user = userEvent.setup();
+    const existing = person({
+      id: "existing",
+      email: "existing@example.com",
+      name: "Existing Person",
+    });
+    const created = person({
+      id: "created",
+      email: "created@example.com",
+      name: "Created Person",
+    });
+    createPerson.mockResolvedValueOnce(created);
+
+    render(<Board initialPeople={[existing]} />);
+
+    const search = screen.getByLabelText("Search people");
+    await user.type(search, "existing");
+    expect(screen.queryByText("created@example.com")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Add person/ }));
+    await user.type(screen.getByLabelText("Email"), "created@example.com");
+    await user.type(screen.getByLabelText(/Name/), "Created Person");
+    await user.click(screen.getByRole("button", { name: "Add person" }));
+
+    expect(await screen.findByText("created@example.com")).toBeInTheDocument();
+    expect(search).toHaveValue("");
   });
 
   it("edits, moves by menu, and deletes a person optimistically", async () => {
@@ -143,13 +172,17 @@ describe("Board", () => {
     expect(toastMock.success).toHaveBeenCalledWith("Updated");
 
     await user.click(screen.getByLabelText("Open menu for edited@example.com"));
-    await user.click(screen.getByRole("button", { name: "Background Check" }));
+    await user.click(
+      screen.getByRole("button", { name: "Background Check + Gmail Creation" }),
+    );
     await waitFor(() =>
       expect(patchPerson).toHaveBeenLastCalledWith("p1", {
         step: "background_check",
       }),
     );
-    expect(toastMock.success).toHaveBeenCalledWith("Moved to Background Check");
+    expect(toastMock.success).toHaveBeenCalledWith(
+      "Moved to Background Check + Gmail Creation",
+    );
 
     await user.click(screen.getByLabelText("Open menu for edited@example.com"));
     await user.click(await screen.findByText("Delete"));
@@ -163,7 +196,7 @@ describe("Board", () => {
     const one = person({ id: "one", email: "one@example.com", step: "eval" });
     const two = person({ id: "two", email: "two@example.com", step: "eval" });
     bulkRequest
-      .mockResolvedValueOnce({ updated: [{ ...one, step: "gmail_creation" }] })
+      .mockResolvedValueOnce({ updated: [{ ...one, step: "background_check" }] })
       .mockRejectedValueOnce(new Error("Bulk delete failed"));
 
     render(<Board initialPeople={[one, two]} />);
@@ -173,12 +206,14 @@ describe("Board", () => {
     expect(screen.getByText("2 selected")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: /Move to/ }));
-    await user.click(screen.getByRole("button", { name: "Gmail Creation" }));
+    await user.click(
+      screen.getByRole("button", { name: "Background Check + Gmail Creation" }),
+    );
     await waitFor(() =>
       expect(bulkRequest).toHaveBeenCalledWith({
         action: "move",
         ids: ["one", "two"],
-        step: "gmail_creation",
+        step: "background_check",
       }),
     );
     expect(screen.queryByText("2 selected")).not.toBeInTheDocument();
@@ -207,7 +242,7 @@ describe("Board", () => {
     render(<Board initialPeople={[existing]} />);
 
     await user.click(screen.getByLabelText("Open menu for rollback@example.com"));
-    await user.click(screen.getByRole("button", { name: "Interview" }));
+    await user.click(screen.getByRole("button", { name: "Sent Contracts" }));
     await waitFor(() =>
       expect(toastMock.error).toHaveBeenCalledWith("Move failed"),
     );
@@ -220,7 +255,7 @@ describe("Board", () => {
     );
     expect(screen.getByText("rollback@example.com")).toBeInTheDocument();
 
-    const evalColumn = screen.getByText("Eval").closest("div");
+    const evalColumn = screen.getByText("Eval + Interview").closest("div");
     expect(evalColumn).not.toBeNull();
     if (evalColumn) {
       expect(within(evalColumn).getByText("1")).toBeInTheDocument();
