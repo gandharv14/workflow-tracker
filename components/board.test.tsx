@@ -11,10 +11,12 @@ vi.mock("@/lib/api", () => ({
   bulkRequest: vi.fn(),
   createPerson: vi.fn(),
   deletePersonRequest: vi.fn(),
+  fetchPeople: vi.fn(),
   patchPerson: vi.fn(),
 }));
 
 const createPerson = vi.mocked(api.createPerson);
+const fetchPeople = vi.mocked(api.fetchPeople);
 const patchPerson = vi.mocked(api.patchPerson);
 const deletePersonRequest = vi.mocked(api.deletePersonRequest);
 const bulkRequest = vi.mocked(api.bulkRequest);
@@ -22,6 +24,7 @@ const toastMock = vi.mocked(toast);
 
 beforeEach(() => {
   createPerson.mockReset();
+  fetchPeople.mockReset();
   patchPerson.mockReset();
   deletePersonRequest.mockReset();
   bulkRequest.mockReset();
@@ -187,6 +190,47 @@ describe("Board", () => {
     expect(patchPerson).not.toHaveBeenCalledWith("old-id", {
       step: "sent_contracts",
     });
+  });
+
+  it("retries a stale move against the recreated same-email person", async () => {
+    const user = userEvent.setup();
+    const stale = person({
+      id: "old-id",
+      email: "test@gmail.com",
+      name: "Old Record",
+      step: "eval",
+    });
+    const recreated = person({
+      id: "new-id",
+      email: "test@gmail.com",
+      name: "Recreated Record",
+      step: "eval",
+    });
+    fetchPeople.mockResolvedValueOnce([recreated]);
+    patchPerson
+      .mockRejectedValueOnce(
+        Object.assign(new Error("Person not found"), { status: 404 }),
+      )
+      .mockResolvedValueOnce({
+        ...recreated,
+        step: "sent_contracts",
+      });
+
+    render(<Board initialPeople={[stale]} />);
+
+    await user.click(screen.getByLabelText("Open menu for test@gmail.com"));
+    await user.click(screen.getByRole("button", { name: "Sent Contracts" }));
+
+    await waitFor(() => {
+      expect(fetchPeople).toHaveBeenCalled();
+      expect(patchPerson).toHaveBeenNthCalledWith(2, "new-id", {
+        step: "sent_contracts",
+      });
+    });
+    expect(screen.queryByText("Old Record")).not.toBeInTheDocument();
+    expect(screen.getByText("Recreated Record")).toBeInTheDocument();
+    expect(toastMock.success).toHaveBeenCalledWith("Moved to Sent Contracts");
+    expect(toastMock.error).not.toHaveBeenCalled();
   });
 
   it("edits, moves by menu, and deletes a person optimistically", async () => {

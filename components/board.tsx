@@ -25,6 +25,7 @@ import {
   bulkRequest,
   createPerson,
   deletePersonRequest,
+  fetchPeople,
   patchPerson,
 } from "@/lib/api";
 import { normalizeStep, STEP_LABELS, STEP_ORDER, type Step } from "@/lib/steps";
@@ -139,7 +140,47 @@ export function Board({ initialPeople }: BoardProps) {
         toast.success(`Moved to ${STEP_LABELS[step]}`);
       } catch (err) {
         if (isNotFoundError(err)) {
-          setPeople((prev) => prev.filter((p) => p.id !== id));
+          let latestPeople: Person[] | null = null;
+          try {
+            latestPeople = (await fetchPeople()).map(normalizePersonStep);
+          } catch {
+            // Keep the stale-card fallback below if reconciliation fails.
+          }
+          const latestPeopleList = latestPeople ?? [];
+          const replacement = latestPeopleList.find(
+            (person) =>
+              person.id !== id && sameNormalizedEmail(person.email, previous.email),
+          );
+          if (replacement) {
+            try {
+              const updated = normalizePersonStep(
+                await patchPerson(replacement.id, { step }),
+              );
+              setPeople([
+                ...latestPeopleList.filter(
+                  (person) =>
+                    person.id !== id &&
+                    person.id !== updated.id &&
+                    !sameNormalizedEmail(person.email, updated.email),
+                ),
+                updated,
+              ]);
+              toast.success(`Moved to ${STEP_LABELS[step]}`);
+            } catch (retryErr) {
+              if (latestPeople) setPeople(latestPeople);
+              else setPeople((prev) => prev.map((p) => (p.id === id ? previous : p)));
+              toast.error(
+                retryErr instanceof Error ? retryErr.message : "Failed to move",
+              );
+            }
+            return;
+          }
+
+          if (latestPeople) {
+            setPeople(latestPeople.filter((person) => person.id !== id));
+          } else {
+            setPeople((prev) => prev.filter((p) => p.id !== id));
+          }
           setSelectedIds((prev) => {
             if (!prev.has(id)) return prev;
             const next = new Set(prev);
