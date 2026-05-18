@@ -120,7 +120,7 @@ export function PersonCard({
             "shrink-0 rounded p-1 text-muted-foreground/70 hover:bg-accent hover:text-foreground",
             "opacity-0 group-hover:opacity-100 data-[state=open]:opacity-100 focus:opacity-100",
           )}
-          aria-label="Open card menu"
+          aria-label={`Open menu for ${person.email}`}
         >
           <MoreVerticalIcon className="size-4" />
         </DropdownMenuTrigger>

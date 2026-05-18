@@ -210,7 +210,9 @@ describe("blob-backed store", () => {
     }));
     vi.stubGlobal(
       "fetch",
-      vi.fn().mockResolvedValue(new Response("[]", { status: 200 })),
+      vi.fn().mockImplementation(() =>
+        Promise.resolve(new Response("[]", { status: 200 })),
+      ),
     );
     delete process.env.WORKFLOW_TRACKER_STORE;
 

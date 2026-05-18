@@ -38,7 +38,7 @@ function parsePeople(raw: string): Person[] {
   }
 }
 
-function useFileStore(): boolean {
+function shouldUseFileStore(): boolean {
   return process.env.WORKFLOW_TRACKER_STORE === "file";
 }
 
@@ -99,11 +99,11 @@ async function writeBlobStore(
 }
 
 async function readAll(): Promise<StoreSnapshot> {
-  return useFileStore() ? readFileStore() : readBlobStore();
+  return shouldUseFileStore() ? readFileStore() : readBlobStore();
 }
 
 async function writeAll(people: Person[], etag: string | null): Promise<void> {
-  if (useFileStore()) {
+  if (shouldUseFileStore()) {
     await writeFileStore(people);
     return;
   }

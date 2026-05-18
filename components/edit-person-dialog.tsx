@@ -24,30 +24,44 @@ type EditPersonDialogProps = {
   ) => Promise<void>;
 };
 
+type EditPersonFormProps = Omit<EditPersonDialogProps, "person"> & {
+  person: Person;
+};
+
 export function EditPersonDialog({
   person,
   onOpenChange,
   onSubmit,
 }: EditPersonDialogProps) {
-  const [email, setEmail] = React.useState("");
-  const [name, setName] = React.useState("");
+  return (
+    <Dialog open={person !== null} onOpenChange={onOpenChange}>
+      {person ? (
+        <EditPersonForm
+          key={`${person.id}:${person.updatedAt}`}
+          person={person}
+          onOpenChange={onOpenChange}
+          onSubmit={onSubmit}
+        />
+      ) : null}
+    </Dialog>
+  );
+}
+
+function EditPersonForm({
+  person,
+  onOpenChange,
+  onSubmit,
+}: EditPersonFormProps) {
+  const [email, setEmail] = React.useState(person.email);
+  const [name, setName] = React.useState(person.name ?? "");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    if (person) {
-      setEmail(person.email);
-      setName(person.name ?? "");
-      setError(null);
-      setSubmitting(false);
-    }
-  }, [person]);
 
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!person || !validEmail || submitting) return;
+    if (!validEmail || submitting) return;
     setSubmitting(true);
     setError(null);
     try {
@@ -64,55 +78,52 @@ export function EditPersonDialog({
   };
 
   return (
-    <Dialog open={person !== null} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Edit person</DialogTitle>
-          <DialogDescription>
-            Update the email or name. Use drag-and-drop or the card menu to change the step.
-          </DialogDescription>
-        </DialogHeader>
-        <form className="grid gap-3" onSubmit={handleSubmit}>
-          <div className="grid gap-1.5">
-            <Label htmlFor="edit-email">Email</Label>
-            <Input
-              id="edit-email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              aria-invalid={email.length > 0 && !validEmail}
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="edit-name">
-              Name <span className="text-muted-foreground">(optional)</span>
-            </Label>
-            <Input
-              id="edit-name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          {error ? (
-            <p className="text-xs text-destructive">{error}</p>
-          ) : null}
-          <DialogFooter className="mt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={submitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!validEmail || submitting}>
-              {submitting ? "Saving..." : "Save changes"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Edit person</DialogTitle>
+        <DialogDescription>
+          Update the email or name. Use drag-and-drop or the card menu to change
+          the step.
+        </DialogDescription>
+      </DialogHeader>
+      <form className="grid gap-3" onSubmit={handleSubmit}>
+        <div className="grid gap-1.5">
+          <Label htmlFor="edit-email">Email</Label>
+          <Input
+            id="edit-email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            aria-invalid={email.length > 0 && !validEmail}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="edit-name">
+            Name <span className="text-muted-foreground">(optional)</span>
+          </Label>
+          <Input
+            id="edit-name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        <DialogFooter className="mt-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={!validEmail || submitting}>
+            {submitting ? "Saving..." : "Save changes"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   );
 }

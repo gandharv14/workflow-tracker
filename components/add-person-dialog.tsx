@@ -28,21 +28,30 @@ export function AddPersonDialog({
   onOpenChange,
   onSubmit,
 }: AddPersonDialogProps) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      {open ? (
+        <AddPersonForm
+          key={initialStep}
+          initialStep={initialStep}
+          onOpenChange={onOpenChange}
+          onSubmit={onSubmit}
+        />
+      ) : null}
+    </Dialog>
+  );
+}
+
+function AddPersonForm({
+  initialStep,
+  onOpenChange,
+  onSubmit,
+}: Omit<AddPersonDialogProps, "open">) {
   const [email, setEmail] = React.useState("");
   const [name, setName] = React.useState("");
   const [step, setStep] = React.useState<Step>(initialStep);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    if (open) {
-      setEmail("");
-      setName("");
-      setStep(initialStep);
-      setError(null);
-      setSubmitting(false);
-    }
-  }, [open, initialStep]);
 
   const validEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 
@@ -66,75 +75,71 @@ export function AddPersonDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add person</DialogTitle>
-          <DialogDescription>
-            Track a new person in the workflow. Email is required and must be unique.
-          </DialogDescription>
-        </DialogHeader>
-        <form className="grid gap-3" onSubmit={handleSubmit}>
-          <div className="grid gap-1.5">
-            <Label htmlFor="add-email">Email</Label>
-            <Input
-              id="add-email"
-              type="email"
-              placeholder="person@example.com"
-              autoComplete="off"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              autoFocus
-              required
-              aria-invalid={email.length > 0 && !validEmail}
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="add-name">
-              Name <span className="text-muted-foreground">(optional)</span>
-            </Label>
-            <Input
-              id="add-name"
-              type="text"
-              placeholder="Jane Doe"
-              autoComplete="off"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-            />
-          </div>
-          <div className="grid gap-1.5">
-            <Label htmlFor="add-step">Workflow step</Label>
-            <select
-              id="add-step"
-              value={step}
-              onChange={(e) => setStep(e.target.value as Step)}
-              className="h-8 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
-            >
-              {STEP_ORDER.map((s) => (
-                <option key={s} value={s}>
-                  {STEP_LABELS[s]}
-                </option>
-              ))}
-            </select>
-          </div>
-          {error ? (
-            <p className="text-xs text-destructive">{error}</p>
-          ) : null}
-          <DialogFooter className="mt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-              disabled={submitting}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={!validEmail || submitting}>
-              {submitting ? "Adding..." : "Add person"}
-            </Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Add person</DialogTitle>
+        <DialogDescription>
+          Track a new person in the workflow. Email is required and must be unique.
+        </DialogDescription>
+      </DialogHeader>
+      <form className="grid gap-3" onSubmit={handleSubmit}>
+        <div className="grid gap-1.5">
+          <Label htmlFor="add-email">Email</Label>
+          <Input
+            id="add-email"
+            type="email"
+            placeholder="person@example.com"
+            autoComplete="off"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoFocus
+            required
+            aria-invalid={email.length > 0 && !validEmail}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="add-name">
+            Name <span className="text-muted-foreground">(optional)</span>
+          </Label>
+          <Input
+            id="add-name"
+            type="text"
+            placeholder="Jane Doe"
+            autoComplete="off"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+        </div>
+        <div className="grid gap-1.5">
+          <Label htmlFor="add-step">Workflow step</Label>
+          <select
+            id="add-step"
+            value={step}
+            onChange={(e) => setStep(e.target.value as Step)}
+            className="h-8 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
+          >
+            {STEP_ORDER.map((s) => (
+              <option key={s} value={s}>
+                {STEP_LABELS[s]}
+              </option>
+            ))}
+          </select>
+        </div>
+        {error ? <p className="text-xs text-destructive">{error}</p> : null}
+        <DialogFooter className="mt-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            disabled={submitting}
+          >
+            Cancel
+          </Button>
+          <Button type="submit" disabled={!validEmail || submitting}>
+            {submitting ? "Adding..." : "Add person"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   );
 }

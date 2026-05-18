@@ -38,7 +38,10 @@ describe("AddPersonDialog", () => {
     await user.type(screen.getByLabelText("Email"), "person@example.com");
     await user.type(screen.getByLabelText(/Name/), "Jane Doe");
     expect(screen.getByLabelText("Workflow step")).toHaveValue("interview");
-    await user.selectOptions(screen.getByLabelText("Workflow step"), "gmail_creation");
+    await user.selectOptions(
+      screen.getByLabelText("Workflow step"),
+      "gmail_creation",
+    );
     await user.click(screen.getByRole("button", { name: "Add person" }));
 
     await waitFor(() => {
@@ -56,7 +59,7 @@ describe("AddPersonDialog", () => {
     const pending = deferred();
     const onSubmit = vi.fn().mockReturnValue(pending.promise);
 
-    render(
+    const first = render(
       <AddPersonDialog
         open
         initialStep="eval"
@@ -71,6 +74,7 @@ describe("AddPersonDialog", () => {
     pending.resolve();
 
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    first.unmount();
 
     const failingSubmit = vi.fn().mockRejectedValue(new Error("Duplicate email"));
     render(
@@ -81,8 +85,8 @@ describe("AddPersonDialog", () => {
         onSubmit={failingSubmit}
       />,
     );
-    await user.type(screen.getAllByLabelText("Email")[1], "person@example.com");
-    await user.click(screen.getAllByRole("button", { name: "Add person" })[1]);
+    await user.type(screen.getByLabelText("Email"), "person@example.com");
+    await user.click(screen.getByRole("button", { name: "Add person" }));
     expect(await screen.findByText("Duplicate email")).toBeInTheDocument();
   });
 
@@ -145,7 +149,7 @@ describe("EditPersonDialog", () => {
     const onSubmit = vi.fn().mockReturnValue(pending.promise);
     const onOpenChange = vi.fn();
 
-    render(
+    const first = render(
       <EditPersonDialog
         person={person({ email: "edit@example.com" })}
         onOpenChange={onOpenChange}
@@ -163,19 +167,21 @@ describe("EditPersonDialog", () => {
     expect(screen.getByRole("button", { name: "Saving..." })).toBeDisabled();
     pending.resolve();
     await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    first.unmount();
 
     const failingSubmit = vi.fn().mockRejectedValue(new Error("Update failed"));
+    const failingOpenChange = vi.fn();
     render(
       <EditPersonDialog
         person={person({ id: "p2", email: "fail@example.com" })}
-        onOpenChange={vi.fn()}
+        onOpenChange={failingOpenChange}
         onSubmit={failingSubmit}
       />,
     );
-    await user.click(screen.getAllByRole("button", { name: "Save changes" })[1]);
+    await user.click(screen.getByRole("button", { name: "Save changes" }));
     expect(await screen.findByText("Update failed")).toBeInTheDocument();
 
-    await user.click(screen.getAllByRole("button", { name: "Cancel" })[1]);
-    expect(onOpenChange).toHaveBeenCalledWith(false);
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(failingOpenChange).toHaveBeenCalledWith(false);
   });
 });
