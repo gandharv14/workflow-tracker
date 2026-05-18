@@ -106,7 +106,7 @@ test("tracks people through the workflow", async ({ page }) => {
 
   await page.getByLabel("Select bob@example.com").click();
   await page.getByRole("button", { name: /Delete/ }).click();
-  await expect(page.getByText("Removed 1 people")).toBeVisible();
+  await expect(page.getByText("Removed 1 person")).toBeVisible();
   await expect(cardEmail(page, "bob@example.com")).toBeHidden();
 
   await page.reload();

@@ -2,13 +2,20 @@ import { NextResponse } from "next/server";
 
 import { addPerson, listPeople } from "@/lib/store";
 import { createPersonSchema } from "@/lib/schemas";
+import { routeErrorResponse } from "@/lib/route-errors";
 import type { Step } from "@/lib/steps";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const people = await listPeople();
-  return NextResponse.json(people);
+  try {
+    const people = await listPeople();
+    return NextResponse.json(people);
+  } catch (err) {
+    const response = routeErrorResponse(err);
+    if (response) return response;
+    throw err;
+  }
 }
 
 export async function POST(request: Request) {
@@ -27,12 +34,19 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await addPerson({
-    email: parsed.data.email,
-    name: parsed.data.name,
-    role: parsed.data.role,
-    step: parsed.data.step as Step | undefined,
-  });
+  let result: Awaited<ReturnType<typeof addPerson>>;
+  try {
+    result = await addPerson({
+      email: parsed.data.email,
+      name: parsed.data.name,
+      role: parsed.data.role,
+      step: parsed.data.step as Step | undefined,
+    });
+  } catch (err) {
+    const response = routeErrorResponse(err);
+    if (response) return response;
+    throw err;
+  }
 
   if (!result.ok) {
     return NextResponse.json(

@@ -107,6 +107,7 @@ describe("importPeopleSchema", () => {
             name: " Person ",
             role: " Reviewer ",
             step: "Eval + Interview",
+            fields: { name: true, role: true, step: true },
           },
         ],
       }),
@@ -117,6 +118,7 @@ describe("importPeopleSchema", () => {
           name: "Person",
           role: "Reviewer",
           step: "eval",
+          fields: { name: true, role: true, step: true },
         },
       ],
     });
@@ -126,6 +128,17 @@ describe("importPeopleSchema", () => {
     expect(() => importPeopleSchema.parse({ people: [] })).toThrow(
       "Upload at least one person",
     );
+  });
+
+  it("rejects duplicate emails in one import", () => {
+    expect(() =>
+      importPeopleSchema.parse({
+        people: [
+          { email: "person@example.com" },
+          { email: " PERSON@example.com " },
+        ],
+      }),
+    ).toThrow("Duplicate email in import: person@example.com");
   });
 });
 

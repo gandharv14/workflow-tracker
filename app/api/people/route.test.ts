@@ -1,4 +1,4 @@
-import { rm } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -20,6 +20,7 @@ async function loadRoutes() {
     person: await import("./[id]/route"),
     bulk: await import("./bulk/route"),
     peopleImport: await import("./import/route"),
+    sentContractsEmail: await import("./sent-contracts-email/route"),
   };
 }
 
@@ -37,6 +38,8 @@ beforeEach(async () => {
 afterEach(async () => {
   delete process.env.WORKFLOW_TRACKER_STORE;
   delete process.env.WORKFLOW_TRACKER_STORE_FILE;
+  delete process.env.RESEND_API_KEY;
+  delete process.env.EMAIL_FROM;
   await rm(file, { force: true });
 });
 
@@ -97,6 +100,19 @@ describe("/api/people", () => {
     expect(duplicate.status).toBe(409);
     await expect(body(duplicate)).resolves.toEqual({
       error: "A person with that email already exists",
+    });
+  });
+
+  it("returns 503 when persisted data is invalid", async () => {
+    await mkdir(join(process.cwd(), "test-results"), { recursive: true });
+    await writeFile(file, "{not json", "utf8");
+    const { people } = await loadRoutes();
+
+    const response = await people.GET();
+
+    expect(response.status).toBe(503);
+    await expect(body(response)).resolves.toEqual({
+      error: "Stored workflow data is invalid and must be repaired.",
     });
   });
 });
@@ -323,6 +339,56 @@ describe("/api/people/import", () => {
     });
   });
 
+  it("preserves omitted import fields and clears explicit blank fields", async () => {
+    const { people, peopleImport } = await loadRoutes();
+    await people.POST(
+      jsonRequest("/api/people", {
+        email: "existing@example.com",
+        name: "Existing",
+        role: "Old Role",
+        step: "eval",
+      }),
+    );
+
+    const stepOnly = await peopleImport.POST(
+      jsonRequest("/api/people/import", {
+        people: [{ email: "existing@example.com", step: "interview" }],
+      }),
+    );
+    expect(stepOnly.status).toBe(200);
+    await expect(body(stepOnly)).resolves.toMatchObject({
+      created: 0,
+      updated: 1,
+      people: [
+        {
+          email: "existing@example.com",
+          name: "Existing",
+          role: "Old Role",
+          step: "interview",
+        },
+      ],
+    });
+
+    const clearOptional = await peopleImport.POST(
+      jsonRequest("/api/people/import", {
+        people: [{ email: "existing@example.com", name: "", role: "" }],
+      }),
+    );
+    expect(clearOptional.status).toBe(200);
+    const clearBody = (await body(clearOptional)) as {
+      created: number;
+      updated: number;
+      people: Array<Record<string, unknown>>;
+    };
+    expect(clearBody).toMatchObject({
+      created: 0,
+      updated: 1,
+      people: [{ email: "existing@example.com", step: "interview" }],
+    });
+    expect(clearBody.people[0]).not.toHaveProperty("name");
+    expect(clearBody.people[0]).not.toHaveProperty("role");
+  });
+
   it("returns 400 for invalid import requests", async () => {
     const { peopleImport } = await loadRoutes();
 
@@ -340,6 +406,124 @@ describe("/api/people/import", () => {
     expect(invalidPayload.status).toBe(400);
     await expect(body(invalidPayload)).resolves.toEqual({
       error: "Upload at least one person",
+    });
+
+    const duplicate = await peopleImport.POST(
+      jsonRequest("/api/people/import", {
+        people: [
+          { email: "dupe@example.com" },
+          { email: "DUPE@example.com" },
+        ],
+      }),
+    );
+    expect(duplicate.status).toBe(400);
+    await expect(body(duplicate)).resolves.toEqual({
+      error: "Duplicate email in import: dupe@example.com",
+    });
+  });
+});
+
+describe("/api/people/sent-contracts-email", () => {
+  it("emails only people in Sent Contracts with personalized greetings", async () => {
+    process.env.RESEND_API_KEY = "test-resend-key";
+    process.env.EMAIL_FROM = "Alexia <alexia@example.com>";
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
+    const { people, sentContractsEmail } = await loadRoutes();
+    await people.POST(
+      jsonRequest("/api/people", {
+        email: "named@example.com",
+        name: "Ada Lovelace",
+        step: "sent_contracts",
+      }),
+    );
+    await people.POST(
+      jsonRequest("/api/people", {
+        email: "fallback@example.com",
+        step: "sent_contracts",
+      }),
+    );
+    await people.POST(
+      jsonRequest("/api/people", {
+        email: "other@example.com",
+        name: "Other Person",
+        step: "eval",
+      }),
+    );
+
+    const response = await sentContractsEmail.POST();
+
+    expect(response.status).toBe(200);
+    await expect(body(response)).resolves.toEqual({ sent: 2 });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const payloads = fetchMock.mock.calls.map(([, init]) =>
+      JSON.parse(String(init?.body)),
+    ) as Array<{ to: string; text: string; subject: string; from: string }>;
+    expect(payloads).toMatchObject([
+      {
+        from: "Alexia <alexia@example.com>",
+        to: "named@example.com",
+        subject: "Subject Matter Expert engagement terms",
+      },
+      {
+        from: "Alexia <alexia@example.com>",
+        to: "fallback@example.com",
+        subject: "Subject Matter Expert engagement terms",
+      },
+    ]);
+    expect(payloads[0].text).toContain("Dear Ada,\n");
+    expect(payloads[1].text).toContain("Hi There,\n");
+    expect(payloads[0].text).toContain("Compensation: Your hourly rate will be $90/hour.");
+  });
+
+  it("returns zero for an empty Sent Contracts queue without email config", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const { sentContractsEmail } = await loadRoutes();
+
+    const response = await sentContractsEmail.POST();
+
+    expect(response.status).toBe(200);
+    await expect(body(response)).resolves.toEqual({ sent: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 503 when email config is missing for a non-empty queue", async () => {
+    const { people, sentContractsEmail } = await loadRoutes();
+    await people.POST(
+      jsonRequest("/api/people", {
+        email: "missing-config@example.com",
+        step: "sent_contracts",
+      }),
+    );
+
+    const response = await sentContractsEmail.POST();
+
+    expect(response.status).toBe(503);
+    await expect(body(response)).resolves.toEqual({
+      error: "Email sending is not configured. Set RESEND_API_KEY and EMAIL_FROM.",
+    });
+  });
+
+  it("returns 502 when the email provider rejects a send", async () => {
+    process.env.RESEND_API_KEY = "test-resend-key";
+    process.env.EMAIL_FROM = "Alexia <alexia@example.com>";
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("Rejected", { status: 500 }),
+    );
+    const { people, sentContractsEmail } = await loadRoutes();
+    await people.POST(
+      jsonRequest("/api/people", {
+        email: "provider-error@example.com",
+        step: "sent_contracts",
+      }),
+    );
+
+    const response = await sentContractsEmail.POST();
+
+    expect(response.status).toBe(502);
+    await expect(body(response)).resolves.toEqual({
+      error: "Failed to send Sent Contracts emails. Please retry.",
     });
   });
 });

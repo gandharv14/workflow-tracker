@@ -78,7 +78,13 @@ export async function bulkRequest(input: {
 }
 
 export async function importPeopleRequest(input: {
-  people: Array<{ email: string; name?: string; role?: string; step?: Step }>;
+  people: Array<{
+    email: string;
+    name?: string;
+    role?: string;
+    step?: Step;
+    fields?: { name?: boolean; role?: boolean; step?: boolean };
+  }>;
 }): Promise<{ created: number; updated: number; people: Person[] }> {
   const res = await fetch(`/api/people/import`, {
     method: "POST",
@@ -86,4 +92,11 @@ export async function importPeopleRequest(input: {
     body: JSON.stringify(input),
   });
   return handle<{ created: number; updated: number; people: Person[] }>(res);
+}
+
+export async function sendSentContractsEmailRequest(): Promise<{ sent: number }> {
+  const res = await fetch(`/api/people/sent-contracts-email`, {
+    method: "POST",
+  });
+  return handle<{ sent: number }>(res);
 }

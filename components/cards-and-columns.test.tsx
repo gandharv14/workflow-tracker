@@ -129,6 +129,69 @@ describe("Column", () => {
     );
     expect(screen.getByText("Drop someone here or click + to add")).toBeInTheDocument();
   });
+
+  it("renders the Email action only for the Sent Contracts column", async () => {
+    const user = userEvent.setup();
+    const onEmailSentContracts = vi.fn();
+
+    const { rerender } = render(
+      <Column
+        step="sent_contracts"
+        people={[]}
+        totalCount={0}
+        hasActiveSearch={false}
+        selectedIds={new Set()}
+        onToggleSelect={vi.fn()}
+        onMove={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onAddHere={vi.fn()}
+        onDownload={vi.fn()}
+        onEmailSentContracts={onEmailSentContracts}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Email Sent Contracts" })).toBeDisabled();
+
+    rerender(
+      <Column
+        step="sent_contracts"
+        people={[person({ id: "sent", step: "sent_contracts" })]}
+        totalCount={1}
+        hasActiveSearch={false}
+        selectedIds={new Set()}
+        onToggleSelect={vi.fn()}
+        onMove={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onAddHere={vi.fn()}
+        onDownload={vi.fn()}
+        onEmailSentContracts={onEmailSentContracts}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Email Sent Contracts" }));
+    expect(onEmailSentContracts).toHaveBeenCalledTimes(1);
+
+    rerender(
+      <Column
+        step="eval"
+        people={[]}
+        totalCount={0}
+        hasActiveSearch={false}
+        selectedIds={new Set()}
+        onToggleSelect={vi.fn()}
+        onMove={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onAddHere={vi.fn()}
+        onDownload={vi.fn()}
+        onEmailSentContracts={onEmailSentContracts}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Email Sent Contracts" }),
+    ).not.toBeInTheDocument();
+  });
 });
 
 describe("BulkActionBar", () => {

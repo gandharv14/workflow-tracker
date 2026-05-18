@@ -29,6 +29,7 @@ import {
   fetchPeople,
   importPeopleRequest,
   patchPerson,
+  sendSentContractsEmailRequest,
 } from "@/lib/api";
 import { serializePeopleCsv, type CsvPersonInput } from "@/lib/csv";
 import { normalizeStep, STEP_LABELS, STEP_ORDER, type Step } from "@/lib/steps";
@@ -86,6 +87,8 @@ export function Board({ initialPeople }: BoardProps) {
   const [addInitialStep, setAddInitialStep] = React.useState<Step>("eval");
   const [editing, setEditing] = React.useState<Person | null>(null);
   const [activeId, setActiveId] = React.useState<string | null>(null);
+  const [isEmailingSentContracts, setIsEmailingSentContracts] =
+    React.useState(false);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 4 } }),
@@ -298,6 +301,21 @@ export function Board({ initialPeople }: BoardProps) {
     toast.success("Downloaded board CSV");
   }, [allPeopleByStep, people.length]);
 
+  const handleEmailSentContracts = React.useCallback(async () => {
+    if (totalsByStep.sent_contracts === 0 || isEmailingSentContracts) return;
+    setIsEmailingSentContracts(true);
+    try {
+      const result = await sendSentContractsEmailRequest();
+      toast.success(
+        `Sent ${result.sent} Sent Contracts ${result.sent === 1 ? "email" : "emails"}`,
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to send emails");
+    } finally {
+      setIsEmailingSentContracts(false);
+    }
+  }, [isEmailingSentContracts, totalsByStep.sent_contracts]);
+
   const handleDelete = React.useCallback(
     async (id: string) => {
       const previous = peopleById.get(id);
@@ -345,8 +363,23 @@ export function Board({ initialPeople }: BoardProps) {
       );
       setPeople(optimistic);
       try {
-        await bulkRequest({ action: "move", ids, step });
-        toast.success(`Moved ${ids.length} to ${STEP_LABELS[step]}`);
+        const result = await bulkRequest({ action: "move", ids, step });
+        const confirmed = (result.updated ?? []).map(normalizePersonStep);
+        const confirmedById = new Map(
+          confirmed.map((person) => [person.id, person]),
+        );
+        setPeople((prev) =>
+          prev.flatMap((person) => {
+            if (!selectedIds.has(person.id)) return [person];
+            const updated = confirmedById.get(person.id);
+            return updated ? [updated] : [];
+          }),
+        );
+        toast.success(
+          confirmed.length === ids.length
+            ? `Moved ${confirmed.length} to ${STEP_LABELS[step]}`
+            : `Moved ${confirmed.length} of ${ids.length} to ${STEP_LABELS[step]}`,
+        );
         clearSelection();
       } catch (err) {
         setPeople(snapshot);
@@ -363,7 +396,8 @@ export function Board({ initialPeople }: BoardProps) {
     setPeople((prev) => prev.filter((p) => !selectedIds.has(p.id)));
     try {
       const result = await bulkRequest({ action: "delete", ids });
-      toast.success(`Removed ${result.deleted ?? ids.length} people`);
+      const deleted = result.deleted ?? 0;
+      toast.success(`Removed ${deleted} ${deleted === 1 ? "person" : "people"}`);
       clearSelection();
     } catch (err) {
       setPeople(snapshot);
@@ -463,6 +497,8 @@ export function Board({ initialPeople }: BoardProps) {
                 onEdit={setEditing}
                 onDelete={handleDelete}
                 onDownload={handleDownloadStep}
+                onEmailSentContracts={handleEmailSentContracts}
+                isEmailingSentContracts={isEmailingSentContracts}
                 onAddHere={(s) => {
                   setAddInitialStep(s);
                   setAddOpen(true);

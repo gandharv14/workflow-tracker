@@ -156,7 +156,9 @@ async function mutate<T>(
     }
   }
   throw new StoreWriteConflictError(
-    lastError instanceof Error ? lastError.message : undefined,
+    lastError instanceof Error
+      ? lastError.message
+      : "The workflow data changed while saving. Please retry.",
   );
 }
 
@@ -412,9 +414,14 @@ export function bulkDelete(ids: string[]): Promise<{ deleted: number }> {
 
 type ImportPeopleInput = {
   email: string;
-  name?: string;
-  role?: string;
+  name?: string | null;
+  role?: string | null;
   step?: Step;
+  fields?: {
+    name?: boolean;
+    role?: boolean;
+    step?: boolean;
+  };
 };
 
 export function importPeople(
@@ -430,9 +437,19 @@ export function importPeople(
       const changedPeople = new Map<string, Person>();
       let created = 0;
       let updated = 0;
+      const seenInputEmails = new Set<string>();
 
       for (const input of inputs) {
         const email = normalizeEmail(input.email);
+        if (seenInputEmails.has(email)) {
+          throw new StoreDataError(`Duplicate email in import: ${email}`);
+        }
+        seenInputEmails.add(email);
+        const fields = input.fields ?? {
+          name: "name" in input,
+          role: "role" in input,
+          step: "step" in input,
+        };
         const idx = indexByEmail.get(email);
         if (idx === undefined) {
           const person: Person = {
@@ -452,14 +469,28 @@ export function importPeople(
         }
 
         const current = nextPeople[idx];
+        const nextName = fields.name
+          ? normalizeOptionalText(input.name)
+          : current.name;
+        const nextRole = fields.role
+          ? normalizeOptionalText(input.role)
+          : current.role;
+        const nextStep =
+          fields.step && input.step !== undefined
+            ? normalizeStep(input.step) ?? current.step
+            : current.step;
+        if (
+          nextName === current.name &&
+          nextRole === current.role &&
+          nextStep === current.step
+        ) {
+          continue;
+        }
         const updatedPerson: Person = {
           ...current,
-          name: normalizeOptionalText(input.name),
-          role: normalizeOptionalText(input.role),
-          step:
-            input.step !== undefined
-              ? normalizeStep(input.step) ?? current.step
-              : current.step,
+          name: nextName,
+          role: nextRole,
+          step: nextStep,
           updatedAt: now,
         };
         nextPeople[idx] = updatedPerson;

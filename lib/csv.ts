@@ -6,6 +6,11 @@ export type CsvPersonInput = {
   name?: string;
   role?: string;
   step?: Step;
+  fields?: {
+    name?: boolean;
+    role?: boolean;
+    step?: boolean;
+  };
 };
 
 const CSV_HEADERS = ["email", "name", "role", "step"] as const;
@@ -89,10 +94,24 @@ export function parsePeopleCsv(csv: string): CsvPersonInput[] {
     throw new Error("CSV must include an email column");
   }
 
-  return rows.slice(1).map((row, index) => {
+  const dataRows = rows.slice(1);
+  if (dataRows.length > 500) {
+    throw new Error("CSV can include at most 500 people");
+  }
+
+  const seenEmails = new Set<string>();
+  return dataRows.map((row, index) => {
     const rowNumber = index + 2;
     const email = trimOptional(row[emailIndex]);
     if (!email) throw new Error(`Row ${rowNumber}: email is required`);
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      throw new Error(`Row ${rowNumber}: email must be a valid email address`);
+    }
+    const normalizedEmail = email.trim().toLowerCase();
+    if (seenEmails.has(normalizedEmail)) {
+      throw new Error(`Row ${rowNumber}: duplicate email ${normalizedEmail}`);
+    }
+    seenEmails.add(normalizedEmail);
 
     const rawStep = trimOptional(stepIndex >= 0 ? row[stepIndex] : undefined);
     const parsedStep = rawStep ? normalizeStep(rawStep) : undefined;
@@ -108,6 +127,11 @@ export function parsePeopleCsv(csv: string): CsvPersonInput[] {
       name: trimOptional(nameIndex >= 0 ? row[nameIndex] : undefined),
       role: trimOptional(roleIndex >= 0 ? row[roleIndex] : undefined),
       step,
+      fields: {
+        name: nameIndex >= 0,
+        role: roleIndex >= 0,
+        step: stepIndex >= 0,
+      },
     };
   });
 }

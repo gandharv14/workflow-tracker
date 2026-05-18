@@ -27,6 +27,31 @@ export const createPersonSchema = z.object({
   step: stepSchema.optional(),
 });
 
+const optionalImportTextSchema = z
+  .union([z.string().trim().max(120), z.null()])
+  .optional()
+  .transform((value) =>
+    typeof value === "string" && value.length > 0 ? value : undefined,
+  );
+
+const importPersonSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, "Email is required")
+    .email("Must be a valid email address"),
+  name: optionalImportTextSchema,
+  role: optionalImportTextSchema,
+  step: stepSchema.optional(),
+  fields: z
+    .object({
+      name: z.boolean().optional(),
+      role: z.boolean().optional(),
+      step: z.boolean().optional(),
+    })
+    .optional(),
+});
+
 export const updatePersonSchema = z
   .object({
     email: z
@@ -65,7 +90,22 @@ export const bulkSchema = z
 
 export const importPeopleSchema = z.object({
   people: z
-    .array(createPersonSchema)
+    .array(importPersonSchema)
     .min(1, "Upload at least one person")
     .max(500, "Upload at most 500 people at a time"),
+}).superRefine((data, ctx) => {
+  const seen = new Map<string, number>();
+  data.people.forEach((person, index) => {
+    const email = person.email.trim().toLowerCase();
+    const firstIndex = seen.get(email);
+    if (firstIndex !== undefined) {
+      ctx.addIssue({
+        code: "custom",
+        message: `Duplicate email in import: ${email}`,
+        path: ["people", index, "email"],
+      });
+      return;
+    }
+    seen.set(email, index);
+  });
 });

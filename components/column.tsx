@@ -1,7 +1,7 @@
 "use client";
 
 import { useDroppable } from "@dnd-kit/core";
-import { DownloadIcon, PlusIcon } from "lucide-react";
+import { DownloadIcon, MailIcon, PlusIcon } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,8 @@ type ColumnProps = {
   onDelete: (id: string) => void;
   onAddHere: (step: Step) => void;
   onDownload: (step: Step) => void;
+  onEmailSentContracts?: () => void;
+  isEmailingSentContracts?: boolean;
 };
 
 export function Column({
@@ -40,6 +42,8 @@ export function Column({
   onDelete,
   onAddHere,
   onDownload,
+  onEmailSentContracts,
+  isEmailingSentContracts = false,
 }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: `col-${step}` });
   const color = STEP_COLORS[step];
@@ -70,6 +74,19 @@ export function Column({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          {step === "sent_contracts" && onEmailSentContracts ? (
+            <Button
+              variant="ghost"
+              size="xs"
+              className="text-muted-foreground hover:text-foreground"
+              onClick={onEmailSentContracts}
+              disabled={totalCount === 0 || isEmailingSentContracts}
+              aria-label="Email Sent Contracts"
+            >
+              <MailIcon />
+              Email
+            </Button>
+          ) : null}
           <Button
             variant="ghost"
             size="icon-sm"

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { deletePerson, updatePerson } from "@/lib/store";
 import { updatePersonSchema } from "@/lib/schemas";
+import { routeErrorResponse } from "@/lib/route-errors";
 import type { Step } from "@/lib/steps";
 
 export const dynamic = "force-dynamic";
@@ -25,12 +26,19 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     );
   }
 
-  const result = await updatePerson(id, {
-    email: parsed.data.email,
-    name: parsed.data.name as string | null | undefined,
-    role: parsed.data.role as string | null | undefined,
-    step: parsed.data.step as Step | undefined,
-  });
+  let result: Awaited<ReturnType<typeof updatePerson>>;
+  try {
+    result = await updatePerson(id, {
+      email: parsed.data.email,
+      name: parsed.data.name as string | null | undefined,
+      role: parsed.data.role as string | null | undefined,
+      step: parsed.data.step as Step | undefined,
+    });
+  } catch (err) {
+    const response = routeErrorResponse(err);
+    if (response) return response;
+    throw err;
+  }
 
   if (!result.ok) {
     if (result.reason === "not_found") {
@@ -47,7 +55,14 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 
 export async function DELETE(_request: Request, { params }: RouteParams) {
   const { id } = await params;
-  const result = await deletePerson(id);
+  let result: Awaited<ReturnType<typeof deletePerson>>;
+  try {
+    result = await deletePerson(id);
+  } catch (err) {
+    const response = routeErrorResponse(err);
+    if (response) return response;
+    throw err;
+  }
   if (!result.ok) {
     return NextResponse.json({ error: "Person not found" }, { status: 404 });
   }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { bulkDelete, bulkMove } from "@/lib/store";
 import { bulkSchema } from "@/lib/schemas";
+import { routeErrorResponse } from "@/lib/route-errors";
 import type { Step } from "@/lib/steps";
 
 export const dynamic = "force-dynamic";
@@ -23,13 +24,25 @@ export async function POST(request: Request) {
   }
 
   if (parsed.data.action === "move") {
-    const { updated } = await bulkMove(
-      parsed.data.ids,
-      parsed.data.step as Step,
-    );
-    return NextResponse.json({ updated });
+    try {
+      const { updated } = await bulkMove(
+        parsed.data.ids,
+        parsed.data.step as Step,
+      );
+      return NextResponse.json({ updated });
+    } catch (err) {
+      const response = routeErrorResponse(err);
+      if (response) return response;
+      throw err;
+    }
   }
 
-  const { deleted } = await bulkDelete(parsed.data.ids);
-  return NextResponse.json({ deleted });
+  try {
+    const { deleted } = await bulkDelete(parsed.data.ids);
+    return NextResponse.json({ deleted });
+  } catch (err) {
+    const response = routeErrorResponse(err);
+    if (response) return response;
+    throw err;
+  }
 }

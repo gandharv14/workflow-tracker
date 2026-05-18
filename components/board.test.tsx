@@ -14,6 +14,7 @@ vi.mock("@/lib/api", () => ({
   fetchPeople: vi.fn(),
   importPeopleRequest: vi.fn(),
   patchPerson: vi.fn(),
+  sendSentContractsEmailRequest: vi.fn(),
 }));
 
 const createPerson = vi.mocked(api.createPerson);
@@ -22,6 +23,7 @@ const patchPerson = vi.mocked(api.patchPerson);
 const deletePersonRequest = vi.mocked(api.deletePersonRequest);
 const bulkRequest = vi.mocked(api.bulkRequest);
 const importPeopleRequest = vi.mocked(api.importPeopleRequest);
+const sendSentContractsEmailRequest = vi.mocked(api.sendSentContractsEmailRequest);
 const toastMock = vi.mocked(toast);
 
 beforeEach(() => {
@@ -31,6 +33,7 @@ beforeEach(() => {
   patchPerson.mockReset();
   deletePersonRequest.mockReset();
   bulkRequest.mockReset();
+  sendSentContractsEmailRequest.mockReset();
   toastMock.success.mockReset();
   toastMock.error.mockReset();
 });
@@ -123,6 +126,30 @@ describe("Board", () => {
     expect(click).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:workflow-board");
     expect(toastMock.success).toHaveBeenCalledWith("Downloaded board CSV");
+  });
+
+  it("sends emails from the Sent Contracts column action", async () => {
+    const user = userEvent.setup();
+    const sent = person({
+      id: "sent",
+      email: "sent@example.com",
+      step: "sent_contracts",
+    });
+    const evalPerson = person({
+      id: "eval",
+      email: "eval@example.com",
+      step: "eval",
+    });
+    sendSentContractsEmailRequest.mockResolvedValueOnce({ sent: 1 });
+
+    render(<Board initialPeople={[sent, evalPerson]} />);
+
+    await user.click(screen.getByRole("button", { name: "Email Sent Contracts" }));
+
+    await waitFor(() => expect(sendSentContractsEmailRequest).toHaveBeenCalledTimes(1));
+    expect(toastMock.success).toHaveBeenCalledWith(
+      "Sent 1 Sent Contracts email",
+    );
   });
 
   it("adds people and surfaces create errors without closing the dialog", async () => {
@@ -367,6 +394,10 @@ describe("Board", () => {
       }),
     );
     expect(screen.queryByText("2 selected")).not.toBeInTheDocument();
+    expect(screen.queryByText("two@example.com")).not.toBeInTheDocument();
+    expect(toastMock.success).toHaveBeenCalledWith(
+      "Moved 1 of 2 to Background Check + Gmail Creation",
+    );
 
     await user.click(screen.getByLabelText("Select one@example.com"));
     await user.click(screen.getByRole("button", { name: /Delete/ }));
@@ -437,12 +468,14 @@ describe("Board", () => {
             name: "Existing Updated",
             role: "Lead",
             step: "sent_contracts",
+            fields: { name: true, role: true, step: true },
           },
           {
             email: "new@example.com",
             name: "New User",
             role: "Reviewer",
             step: "background_check",
+            fields: { name: true, role: true, step: true },
           },
         ],
       }),
