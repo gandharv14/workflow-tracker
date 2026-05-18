@@ -11,7 +11,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { PlusIcon, UploadIcon } from "lucide-react";
+import { DownloadIcon, PlusIcon, UploadIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -291,6 +291,13 @@ export function Board({ initialPeople }: BoardProps) {
     [allPeopleByStep],
   );
 
+  const handleDownloadBoard = React.useCallback(() => {
+    if (people.length === 0) return;
+    const rows = STEP_ORDER.flatMap((step) => allPeopleByStep[step]);
+    downloadCsv("workflow-board.csv", serializePeopleCsv(rows));
+    toast.success("Downloaded board CSV");
+  }, [allPeopleByStep, people.length]);
+
   const handleDelete = React.useCallback(
     async (id: string) => {
       const previous = peopleById.get(id);
@@ -413,6 +420,13 @@ export function Board({ initialPeople }: BoardProps) {
                 Clear ({selectedIds.size})
               </Button>
             ) : null}
+            <Button
+              variant="outline"
+              onClick={handleDownloadBoard}
+              disabled={people.length === 0}
+            >
+              <DownloadIcon /> Download all CSV
+            </Button>
             <Button variant="outline" onClick={() => setUploadOpen(true)}>
               <UploadIcon /> Upload CSV
             </Button>

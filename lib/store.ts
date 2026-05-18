@@ -1,6 +1,7 @@
 import "server-only";
 
 import {
+  BlobError,
   BlobNotFoundError,
   BlobPreconditionFailedError,
   head,
@@ -17,6 +18,20 @@ const MAX_RETRIES = 3;
 
 type StoreSnapshot = { people: Person[]; etag: string | null };
 
+export class StoreDataError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StoreDataError";
+  }
+}
+
+export class StoreWriteConflictError extends Error {
+  constructor(message = "The workflow data changed while saving. Please retry.") {
+    super(message);
+    this.name = "StoreWriteConflictError";
+  }
+}
+
 // Serialize all reads/writes through a single in-process promise chain so we
 // can never observe a half-written response or interleave updates inside one
 // runtime instance. ETag-based conditional writes guard cross-instance races.
@@ -29,18 +44,18 @@ function withLock<T>(fn: () => Promise<T>): Promise<T> {
 
 function parsePeople(raw: string): Person[] {
   if (!raw.trim()) return [];
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(raw) as Person[];
-    if (!Array.isArray(parsed)) return [];
-    return parsed.map((person) => ({
-      ...person,
-      name: normalizeOptionalText(person.name),
-      role: normalizeOptionalText(person.role),
-      step: normalizeStep(person.step) ?? "eval",
-    }));
+    parsed = JSON.parse(raw);
   } catch {
-    return [];
+    throw new StoreDataError("Stored workflow data is not valid JSON");
   }
+  if (!Array.isArray(parsed)) {
+    throw new StoreDataError("Stored workflow data must be an array");
+  }
+
+  const seenEmails = new Set<string>();
+  return parsed.map((value, index) => normalizePersistedPerson(value, index, seenEmails));
 }
 
 function shouldUseFileStore(): boolean {
@@ -104,7 +119,7 @@ async function writeBlobStore(
   await put(BLOB_KEY, payload, {
     access: "public",
     contentType: "application/json",
-    allowOverwrite: true,
+    allowOverwrite: etag !== null,
     ...(etag ? { ifMatch: etag } : {}),
   });
 }
@@ -133,14 +148,16 @@ async function mutate<T>(
       await writeAll(next, etag);
       return result;
     } catch (err) {
-      if (err instanceof BlobPreconditionFailedError) {
+      if (isRetryableWriteConflict(err)) {
         lastError = err;
         continue;
       }
       throw err;
     }
   }
-  throw lastError ?? new Error("Exceeded blob write retries");
+  throw new StoreWriteConflictError(
+    lastError instanceof Error ? lastError.message : undefined,
+  );
 }
 
 function normalizeEmail(email: string): string {
@@ -151,6 +168,83 @@ function normalizeOptionalText(value: string | undefined | null): string | undef
   return typeof value === "string" && value.trim().length > 0
     ? value.trim()
     : undefined;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function hasValidTimestamp(value: unknown): value is string {
+  return typeof value === "string" && !Number.isNaN(Date.parse(value));
+}
+
+function normalizePersistedPerson(
+  value: unknown,
+  index: number,
+  seenEmails: Set<string>,
+): Person {
+  if (!isRecord(value)) {
+    throw new StoreDataError(`Stored workflow person at index ${index} is invalid`);
+  }
+
+  const id = value.id;
+  const emailValue = value.email;
+  const createdAt = value.createdAt;
+  const updatedAt = value.updatedAt;
+  if (typeof id !== "string" || id.trim().length === 0) {
+    throw new StoreDataError(`Stored workflow person at index ${index} is missing an id`);
+  }
+  if (typeof emailValue !== "string" || emailValue.trim().length === 0) {
+    throw new StoreDataError(
+      `Stored workflow person at index ${index} is missing an email`,
+    );
+  }
+  if (!hasValidTimestamp(createdAt) || !hasValidTimestamp(updatedAt)) {
+    throw new StoreDataError(
+      `Stored workflow person at index ${index} has invalid timestamps`,
+    );
+  }
+
+  const email = normalizeEmail(emailValue);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new StoreDataError(
+      `Stored workflow person at index ${index} has an invalid email`,
+    );
+  }
+  if (seenEmails.has(email)) {
+    throw new StoreDataError(`Stored workflow data has duplicate email ${email}`);
+  }
+  seenEmails.add(email);
+
+  return {
+    id: id.trim(),
+    email,
+    name: normalizeOptionalText(
+      typeof value.name === "string" || value.name === null
+        ? value.name
+        : undefined,
+    ),
+    role: normalizeOptionalText(
+      typeof value.role === "string" || value.role === null
+        ? value.role
+        : undefined,
+    ),
+    step: normalizeStep(value.step) ?? "eval",
+    createdAt,
+    updatedAt,
+  };
+}
+
+function isRetryableWriteConflict(err: unknown): boolean {
+  if (err instanceof BlobPreconditionFailedError) return true;
+  if (err instanceof BlobError) {
+    return /precondition|already exists|conflict/i.test(err.message);
+  }
+  if (err && typeof err === "object") {
+    const status = "status" in err ? err.status : undefined;
+    if (status === 409 || status === 412) return true;
+  }
+  return err instanceof Error && /precondition|already exists|conflict/i.test(err.message);
 }
 
 export function listPeople(): Promise<Person[]> {

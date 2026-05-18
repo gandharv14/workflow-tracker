@@ -77,6 +77,54 @@ describe("Board", () => {
     expect(screen.getByText("older@example.com")).toBeInTheDocument();
   });
 
+  it("downloads all queues as a single board CSV", async () => {
+    const user = userEvent.setup();
+    const createObjectURL = vi.fn(() => "blob:workflow-board");
+    const revokeObjectURL = vi.fn();
+    const click = vi
+      .spyOn(HTMLAnchorElement.prototype, "click")
+      .mockImplementation(() => {});
+    Object.defineProperty(URL, "createObjectURL", {
+      configurable: true,
+      value: createObjectURL,
+    });
+    Object.defineProperty(URL, "revokeObjectURL", {
+      configurable: true,
+      value: revokeObjectURL,
+    });
+    const evalPerson = person({
+      id: "eval",
+      email: "eval@example.com",
+      name: "Eval Person",
+      role: "Reviewer",
+      step: "eval",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    const productionPerson = person({
+      id: "production",
+      email: "production@example.com",
+      name: "Production Person",
+      role: "Lead",
+      step: "in_production",
+      updatedAt: "2026-01-02T00:00:00.000Z",
+    });
+
+    render(<Board initialPeople={[productionPerson, evalPerson]} />);
+
+    await user.type(screen.getByLabelText("Search people"), "eval");
+    await user.click(screen.getByRole("button", { name: "Download all CSV" }));
+
+    expect(createObjectURL).toHaveBeenCalledTimes(1);
+    await expect(createObjectURL.mock.calls[0][0].text()).resolves.toBe(
+      "email,name,role,step\n" +
+        "eval@example.com,Eval Person,Reviewer,eval\n" +
+        "production@example.com,Production Person,Lead,in_production\n",
+    );
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:workflow-board");
+    expect(toastMock.success).toHaveBeenCalledWith("Downloaded board CSV");
+  });
+
   it("adds people and surfaces create errors without closing the dialog", async () => {
     const user = userEvent.setup();
     const created = person({
