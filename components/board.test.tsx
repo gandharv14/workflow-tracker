@@ -91,7 +91,7 @@ describe("Board", () => {
     expect(screen.getByText("older@example.com")).toBeInTheDocument();
   });
 
-  it("selects all visible people in a queue", async () => {
+  it("selects and unselects all visible people in a queue", async () => {
     const user = userEvent.setup();
     const one = person({ id: "one", email: "one@example.com", step: "eval" });
     const two = person({ id: "two", email: "two@example.com", step: "eval" });
@@ -103,8 +103,11 @@ describe("Board", () => {
 
     renderBoard([one, two, background]);
 
-    await user.click(screen.getByRole("button", { name: "Select all in Eval" }));
+    await user.click(screen.getByRole("button", { name: "Select All in Eval" }));
     expect(screen.getByText("2 selected")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Unselect All in Eval" }));
+    expect(screen.queryByText("2 selected")).not.toBeInTheDocument();
   });
 
   it("renders Transcript Consensus with only its workflow steps", async () => {

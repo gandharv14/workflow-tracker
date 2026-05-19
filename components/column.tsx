@@ -27,7 +27,7 @@ type ColumnProps = {
   onDelete: (id: string) => void;
   onAddHere: (step: Step) => void;
   onDownload: (step: Step) => void;
-  onSelectAll: (ids: string[]) => void;
+  onToggleSelectAll: (ids: string[], shouldSelect: boolean) => void;
   onEmailSentContracts?: () => void;
   isEmailingSentContracts?: boolean;
 };
@@ -45,14 +45,17 @@ export function Column({
   onDelete,
   onAddHere,
   onDownload,
-  onSelectAll,
+  onToggleSelectAll,
   onEmailSentContracts,
   isEmailingSentContracts = false,
 }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: `col-${step}` });
   const color = STEP_COLORS[step];
   const visibleIds = people.map((person) => person.id);
-  const hasUnselectedPeople = visibleIds.some((id) => !selectedIds.has(id));
+  const hasVisiblePeople = visibleIds.length > 0;
+  const allVisibleSelected =
+    hasVisiblePeople && visibleIds.every((id) => selectedIds.has(id));
+  const selectionAction = allVisibleSelected ? "Unselect All" : "Select All";
 
   return (
     <div
@@ -84,11 +87,11 @@ export function Column({
             variant="ghost"
             size="xs"
             className="text-muted-foreground hover:text-foreground"
-            onClick={() => onSelectAll(visibleIds)}
-            disabled={!hasUnselectedPeople}
-            aria-label={`Select all in ${STEP_LABELS[step]}`}
+            onClick={() => onToggleSelectAll(visibleIds, !allVisibleSelected)}
+            disabled={!hasVisiblePeople}
+            aria-label={`${selectionAction} in ${STEP_LABELS[step]}`}
           >
-            Select All
+            {selectionAction}
           </Button>
           {step === "sent_contracts" && onEmailSentContracts ? (
             <Button
