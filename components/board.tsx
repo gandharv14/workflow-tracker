@@ -12,10 +12,10 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
-import { DownloadIcon, PlusIcon, UploadIcon } from "lucide-react";
+import { DownloadIcon, LogOutIcon, PlusIcon, UploadIcon } from "lucide-react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { AddPersonDialog } from "@/components/add-person-dialog";
 import { EditPersonDialog } from "@/components/edit-person-dialog";
 import { UploadCsvDialog } from "@/components/upload-csv-dialog";
@@ -48,6 +48,8 @@ type BoardProps = {
   projectId: ProjectId;
   initialPeople: Person[];
 };
+
+const LOGOUT_PATH = "/logout";
 
 function makeStepRecord<T>(
   steps: readonly Step[],
@@ -488,7 +490,7 @@ export function Board({ projectId, initialPeople }: BoardProps) {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r bg-muted/25 p-4 md:block">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col border-r bg-muted/25 p-4 md:flex">
         <div className="mb-5">
           <h1 className="text-base font-semibold tracking-tight">
             Workflow Tracker
@@ -518,6 +520,15 @@ export function Board({ projectId, initialPeople }: BoardProps) {
             );
           })}
         </nav>
+        <a
+          href={LOGOUT_PATH}
+          className={cn(
+            buttonVariants({ variant: "outline" }),
+            "mt-auto w-full justify-start",
+          )}
+        >
+          <LogOutIcon /> Log out
+        </a>
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -557,7 +568,16 @@ export function Board({ projectId, initialPeople }: BoardProps) {
               resultCount={visibleAll}
               totalCount={totalAll}
             />
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
+              <a
+                href={LOGOUT_PATH}
+                className={cn(
+                  buttonVariants({ variant: "outline" }),
+                  "md:hidden",
+                )}
+              >
+                <LogOutIcon /> Log out
+              </a>
               {selectedIds.size > 0 ? (
                 <Button variant="ghost" size="sm" onClick={clearSelection}>
                   Clear ({selectedIds.size})

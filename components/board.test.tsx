@@ -52,6 +52,16 @@ beforeEach(() => {
 });
 
 describe("Board", () => {
+  it("renders logout links in the navigation", () => {
+    renderBoard([]);
+
+    const logoutLinks = screen.getAllByRole("link", { name: "Log out" });
+    expect(logoutLinks).toHaveLength(2);
+    for (const link of logoutLinks) {
+      expect(link).toHaveAttribute("href", "/logout");
+    }
+  });
+
   it("groups, sorts, searches, and clears results", async () => {
     const user = userEvent.setup();
     const older = person({
@@ -638,7 +648,10 @@ describe("Board", () => {
     );
     expect(screen.getByText("rollback@example.com")).toBeInTheDocument();
 
-    const evalColumn = screen.getByText("Eval").closest("div");
+    const evalColumn = screen
+      .getByRole("heading", { name: "Eval" })
+      .closest("div")
+      ?.parentElement?.parentElement;
     expect(evalColumn).not.toBeNull();
     if (evalColumn) {
       expect(within(evalColumn).getByText("1")).toBeInTheDocument();
