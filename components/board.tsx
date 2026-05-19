@@ -22,6 +22,7 @@ import { BulkActionBar } from "@/components/bulk-action-bar";
 import { Column } from "@/components/column";
 import { PersonCard } from "@/components/person-card";
 import { SearchBar } from "@/components/search-bar";
+import { SignOutButton } from "@/components/sign-out-button";
 import {
   bulkRequest,
   createPerson,
@@ -37,6 +38,10 @@ import type { Person } from "@/lib/types";
 
 type BoardProps = {
   initialPeople: Person[];
+  currentUser?: {
+    email: string;
+    name?: string | null;
+  };
 };
 
 function makeStepRecord<T>(createValue: () => T): Record<Step, T> {
@@ -74,7 +79,7 @@ function downloadCsv(filename: string, csv: string): void {
   URL.revokeObjectURL(url);
 }
 
-export function Board({ initialPeople }: BoardProps) {
+export function Board({ initialPeople, currentUser }: BoardProps) {
   const [people, setPeople] = React.useState<Person[]>(() =>
     initialPeople.map(normalizePersonStep),
   );
@@ -445,6 +450,17 @@ export function Board({ initialPeople }: BoardProps) {
             totalCount={totalAll}
           />
           <div className="ml-auto flex items-center gap-2">
+            {currentUser ? (
+              <div className="hidden flex-col items-end text-right sm:flex">
+                <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                  Signed in
+                </span>
+                <span className="max-w-52 truncate text-xs">
+                  {currentUser.name ?? currentUser.email}
+                </span>
+              </div>
+            ) : null}
+            {currentUser ? <SignOutButton /> : null}
             {selectedIds.size > 0 ? (
               <Button
                 variant="ghost"

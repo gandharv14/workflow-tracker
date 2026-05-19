@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireApiAuth } from "@/lib/auth";
 import { bulkDelete, bulkMove } from "@/lib/store";
 import { bulkSchema } from "@/lib/schemas";
 import { routeErrorResponse } from "@/lib/route-errors";
@@ -8,6 +9,9 @@ import type { Step } from "@/lib/steps";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
+  const authResponse = await requireApiAuth();
+  if (authResponse) return authResponse;
+
   let payload: unknown;
   try {
     payload = await request.json();

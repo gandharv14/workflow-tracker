@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireApiAuth } from "@/lib/auth";
 import {
   EmailConfigurationError,
   EmailDeliveryError,
@@ -15,6 +16,9 @@ import { listPeople } from "@/lib/store";
 export const dynamic = "force-dynamic";
 
 export async function POST() {
+  const authResponse = await requireApiAuth();
+  if (authResponse) return authResponse;
+
   let sentContractsPeople: Awaited<ReturnType<typeof listPeople>>;
   try {
     const people = await listPeople();

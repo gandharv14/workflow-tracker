@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { requireApiAuth } from "@/lib/auth";
 import { importPeople } from "@/lib/store";
 import { importPeopleSchema } from "@/lib/schemas";
 import { routeErrorResponse } from "@/lib/route-errors";
@@ -28,6 +29,9 @@ function rawPeopleFromPayload(payload: unknown): unknown[] {
 }
 
 export async function POST(request: Request) {
+  const authResponse = await requireApiAuth();
+  if (authResponse) return authResponse;
+
   let payload: unknown;
   try {
     payload = await request.json();
