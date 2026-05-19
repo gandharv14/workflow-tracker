@@ -3,6 +3,11 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+  TRANSCRIPT_CONSENSUS_PROJECT_ID,
+} from "@/lib/projects";
+
 let file: string;
 
 function jsonRequest(path: string, body: unknown): Request {
@@ -69,6 +74,61 @@ describe("/api/people", () => {
 
     const listed = await people.GET();
     await expect(body(listed)).resolves.toHaveLength(1);
+  });
+
+  it("scopes people and step validation by project", async () => {
+    const { people, person } = await loadRoutes();
+
+    const cc = await people.POST(
+      jsonRequest("/api/people?project=cc-agentic-coding-taiga", {
+        email: "shared@example.com",
+        step: "interview",
+      }),
+    );
+    const transcript = await people.POST(
+      jsonRequest("/api/people?project=transcript-consensus", {
+        email: "shared@example.com",
+        step: "background_check",
+      }),
+    );
+    expect(cc.status).toBe(201);
+    expect(transcript.status).toBe(201);
+
+    await expect(
+      body(await people.GET(new Request("http://localhost/api/people?project=cc-agentic-coding-taiga"))),
+    ).resolves.toMatchObject([
+      {
+        projectId: CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+        email: "shared@example.com",
+        step: "interview",
+      },
+    ]);
+    await expect(
+      body(await people.GET(new Request("http://localhost/api/people?project=transcript-consensus"))),
+    ).resolves.toMatchObject([
+      {
+        projectId: TRANSCRIPT_CONSENSUS_PROJECT_ID,
+        email: "shared@example.com",
+        step: "background_check",
+      },
+    ]);
+
+    const invalidTranscriptStep = await people.POST(
+      jsonRequest("/api/people?project=transcript-consensus", {
+        email: "bad-step@example.com",
+        step: "sent_contracts",
+      }),
+    );
+    expect(invalidTranscriptStep.status).toBe(400);
+
+    const ccBody = (await cc.json()) as { id: string };
+    const wrongProjectPatch = await person.PATCH(
+      jsonRequest(`/api/people/${ccBody.id}?project=transcript-consensus`, {
+        step: "in_production",
+      }),
+      { params: Promise.resolve({ id: ccBody.id }) },
+    );
+    expect(wrongProjectPatch.status).toBe(404);
   });
 
   it("returns 400 for invalid JSON or invalid payloads and 409 for duplicates", async () => {
@@ -485,6 +545,21 @@ describe("/api/people/sent-contracts-email", () => {
 
     expect(response.status).toBe(200);
     await expect(body(response)).resolves.toEqual({ sent: 0 });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects Sent Contracts email requests for projects without that step", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+    const { sentContractsEmail } = await loadRoutes();
+
+    const response = await sentContractsEmail.POST(
+      new Request("http://localhost/api/people/sent-contracts-email?project=transcript-consensus"),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(body(response)).resolves.toEqual({
+      error: "Sent Contracts emails are not available for this project",
+    });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 

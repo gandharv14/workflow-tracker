@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { parsePeopleCsv, serializePeopleCsv } from "./csv";
+import { TRANSCRIPT_CONSENSUS_PROJECT_ID } from "./projects";
+import { getProjectSteps } from "./steps";
 import { person } from "@/test/factories";
 
 describe("parsePeopleCsv", () => {
@@ -51,6 +53,21 @@ describe("parsePeopleCsv", () => {
         step: undefined,
       },
     ]);
+  });
+
+  it("validates workflow steps against a project-specific step list", () => {
+    const transcriptSteps = getProjectSteps(TRANSCRIPT_CONSENSUS_PROJECT_ID);
+
+    expect(
+      parsePeopleCsv("email,step\njane@example.com,In Production\n", {
+        steps: transcriptSteps,
+      }),
+    ).toMatchObject([{ email: "jane@example.com", step: "in_production" }]);
+    expect(() =>
+      parsePeopleCsv("email,step\njane@example.com,sent_contracts\n", {
+        steps: transcriptSteps,
+      }),
+    ).toThrow("Row 2: step must be one of eval, background_check, in_production");
   });
 });
 

@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   bulkSchema,
+  bulkSchemaForProject,
   createPersonSchema,
+  createPersonSchemaForProject,
   importPeopleSchema,
   updatePersonSchema,
 } from "./schemas";
+import { TRANSCRIPT_CONSENSUS_PROJECT_ID } from "./projects";
 
 describe("createPersonSchema", () => {
   it("accepts valid people and trims optional fields", () => {
@@ -60,6 +63,25 @@ describe("createPersonSchema", () => {
       createPersonSchema.parse({
         email: "person@example.com",
         step: "unknown",
+      }),
+    ).toThrow();
+  });
+
+  it("rejects steps that are not part of a project workflow", () => {
+    const transcriptSchema = createPersonSchemaForProject(
+      TRANSCRIPT_CONSENSUS_PROJECT_ID,
+    );
+
+    expect(
+      transcriptSchema.parse({
+        email: "person@example.com",
+        step: "background_check",
+      }).step,
+    ).toBe("background_check");
+    expect(() =>
+      transcriptSchema.parse({
+        email: "person@example.com",
+        step: "interview",
       }),
     ).toThrow();
   });
@@ -178,5 +200,26 @@ describe("bulkSchema", () => {
     expect(() =>
       bulkSchema.parse({ action: "move", ids: ["one"] }),
     ).toThrow("step is required when action is 'move'");
+  });
+
+  it("validates bulk move steps against the active project", () => {
+    const transcriptBulkSchema = bulkSchemaForProject(
+      TRANSCRIPT_CONSENSUS_PROJECT_ID,
+    );
+
+    expect(
+      transcriptBulkSchema.parse({
+        action: "move",
+        ids: ["one"],
+        step: "in_production",
+      }).step,
+    ).toBe("in_production");
+    expect(() =>
+      transcriptBulkSchema.parse({
+        action: "move",
+        ids: ["one"],
+        step: "sent_contracts",
+      }),
+    ).toThrow();
   });
 });

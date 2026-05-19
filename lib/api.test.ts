@@ -9,9 +9,11 @@ import {
   importPeopleRequest,
   patchPerson,
 } from "./api";
+import { TRANSCRIPT_CONSENSUS_PROJECT_ID } from "./projects";
 import { person } from "@/test/factories";
 
 const fetchMock = vi.fn();
+const projectId = TRANSCRIPT_CONSENSUS_PROJECT_ID;
 
 beforeEach(() => {
   vi.stubGlobal("fetch", fetchMock);
@@ -22,10 +24,13 @@ describe("client API helpers", () => {
     const people = [person()];
     fetchMock.mockResolvedValueOnce(Response.json(people));
 
-    await expect(fetchPeople()).resolves.toEqual(people);
-    expect(fetchMock).toHaveBeenCalledWith("/api/people", {
-      cache: "no-store",
-    });
+    await expect(fetchPeople(projectId)).resolves.toEqual(people);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/people?project=transcript-consensus",
+      {
+        cache: "no-store",
+      },
+    );
   });
 
   it("creates, patches, deletes, and bulk updates people with the expected requests", async () => {
@@ -40,67 +45,84 @@ describe("client API helpers", () => {
       );
 
     await expect(
-      createPerson({
+      createPerson(projectId, {
         email: "new@example.com",
         name: "New",
         role: "Reviewer",
         step: "eval",
       }),
     ).resolves.toEqual(created);
-    expect(fetchMock).toHaveBeenLastCalledWith("/api/people", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: "new@example.com",
-        name: "New",
-        role: "Reviewer",
-        step: "eval",
-      }),
-    });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/people?project=transcript-consensus",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: "new@example.com",
+          name: "New",
+          role: "Reviewer",
+          step: "eval",
+        }),
+      },
+    );
 
     await expect(
-      patchPerson("person/1", {
+      patchPerson(projectId, "person/1", {
         email: "new@example.com",
         name: null,
         role: "Lead",
       }),
     ).resolves.toMatchObject({ name: "New Name" });
-    expect(fetchMock).toHaveBeenLastCalledWith("/api/people/person%2F1", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: "new@example.com",
-        name: null,
-        role: "Lead",
-      }),
-    });
-
-    await expect(deletePersonRequest("person/1")).resolves.toBeUndefined();
-    expect(fetchMock).toHaveBeenLastCalledWith("/api/people/person%2F1", {
-      method: "DELETE",
-    });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/people/person%2F1?project=transcript-consensus",
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: "new@example.com",
+          name: null,
+          role: "Lead",
+        }),
+      },
+    );
 
     await expect(
-      bulkRequest({ action: "delete", ids: ["one", "two"] }),
+      deletePersonRequest(projectId, "person/1"),
+    ).resolves.toBeUndefined();
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/people/person%2F1?project=transcript-consensus",
+      {
+        method: "DELETE",
+      },
+    );
+
+    await expect(
+      bulkRequest(projectId, { action: "delete", ids: ["one", "two"] }),
     ).resolves.toEqual({ deleted: 2 });
-    expect(fetchMock).toHaveBeenLastCalledWith("/api/people/bulk", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "delete", ids: ["one", "two"] }),
-    });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/people/bulk?project=transcript-consensus",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", ids: ["one", "two"] }),
+      },
+    );
 
     await expect(
-      importPeopleRequest({
+      importPeopleRequest(projectId, {
         people: [{ email: "import@example.com", role: "Ops", step: "eval" }],
       }),
     ).resolves.toEqual({ created: 1, updated: 0, people: [created] });
-    expect(fetchMock).toHaveBeenLastCalledWith("/api/people/import", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        people: [{ email: "import@example.com", role: "Ops", step: "eval" }],
-      }),
-    });
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/people/import?project=transcript-consensus",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          people: [{ email: "import@example.com", role: "Ops", step: "eval" }],
+        }),
+      },
+    );
   });
 
   it("throws server error messages when available", async () => {
@@ -110,7 +132,9 @@ describe("client API helpers", () => {
       }),
     );
 
-    await expect(createPerson({ email: "dupe@example.com" })).rejects.toMatchObject({
+    await expect(
+      createPerson(projectId, { email: "dupe@example.com" }),
+    ).rejects.toMatchObject({
       message: "A person with that email already exists",
       status: 409,
     } satisfies Partial<ApiError>);
@@ -121,12 +145,12 @@ describe("client API helpers", () => {
       Response.json({ error: "Person not found" }, { status: 404 }),
     );
 
-    await expect(deletePersonRequest("missing")).resolves.toBeUndefined();
+    await expect(deletePersonRequest(projectId, "missing")).resolves.toBeUndefined();
   });
 
   it("falls back to the response status when the error body is not JSON", async () => {
     fetchMock.mockResolvedValueOnce(new Response("nope", { status: 500 }));
 
-    await expect(fetchPeople()).rejects.toThrow("Request failed (500)");
+    await expect(fetchPeople(projectId)).rejects.toThrow("Request failed (500)");
   });
 });

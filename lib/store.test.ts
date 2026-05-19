@@ -3,6 +3,10 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import {
+  CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+  TRANSCRIPT_CONSENSUS_PROJECT_ID,
+} from "./projects";
 import type { Step } from "./steps";
 
 let file: string;
@@ -141,6 +145,54 @@ describe("file-backed store", () => {
 
     expect(result).toEqual({ ok: false, reason: "duplicate_email" });
     await expect(readFile(file, "utf8")).resolves.toBe(before);
+  });
+
+  it("scopes people, duplicates, and valid steps by project", async () => {
+    const { addPerson, deletePerson, listPeople, updatePerson } = await loadStore();
+
+    const cc = await addPerson({
+      email: "shared@example.com",
+      step: "interview",
+    });
+    const transcript = await addPerson(
+      {
+        email: "shared@example.com",
+        step: "background_check",
+      },
+      TRANSCRIPT_CONSENSUS_PROJECT_ID,
+    );
+    if (!cc.ok || !transcript.ok) throw new Error("fixtures failed");
+
+    await expect(listPeople(CC_AGENTIC_CODING_TAIGA_PROJECT_ID)).resolves.toMatchObject([
+      {
+        id: cc.person.id,
+        projectId: CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+        email: "shared@example.com",
+        step: "interview",
+      },
+    ]);
+    await expect(listPeople(TRANSCRIPT_CONSENSUS_PROJECT_ID)).resolves.toMatchObject([
+      {
+        id: transcript.person.id,
+        projectId: TRANSCRIPT_CONSENSUS_PROJECT_ID,
+        email: "shared@example.com",
+        step: "background_check",
+      },
+    ]);
+    await expect(
+      addPerson({ email: "SHARED@example.com" }, TRANSCRIPT_CONSENSUS_PROJECT_ID),
+    ).resolves.toEqual({ ok: false, reason: "duplicate_email" });
+    await expect(
+      addPerson({ email: "bad-step@example.com", step: "sent_contracts" }, TRANSCRIPT_CONSENSUS_PROJECT_ID),
+    ).rejects.toThrow("Step is not valid for Transcript Consensus");
+
+    await expect(
+      updatePerson(cc.person.id, { step: "in_production" }, TRANSCRIPT_CONSENSUS_PROJECT_ID),
+    ).resolves.toEqual({ ok: false, reason: "not_found" });
+    await expect(
+      deletePerson(cc.person.id, TRANSCRIPT_CONSENSUS_PROJECT_ID),
+    ).resolves.toEqual({ ok: false });
+    await expect(listPeople(CC_AGENTIC_CODING_TAIGA_PROJECT_ID)).resolves.toHaveLength(1);
   });
 
   it("updates fields, clears names and roles, and rejects missing or conflicting updates", async () => {

@@ -16,7 +16,7 @@ import { listPeople } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-export async function POST(request: Request) {
+export async function POST(request?: Request) {
   const { projectId, response } = projectIdOrResponse(request);
   if (response) return response;
   const project = getProject(projectId);

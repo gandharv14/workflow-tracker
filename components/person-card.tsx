@@ -24,11 +24,12 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { STEP_LABELS, STEP_ORDER, type Step } from "@/lib/steps";
+import { STEP_LABELS, type Step } from "@/lib/steps";
 import type { Person } from "@/lib/types";
 
 type PersonCardProps = {
   person: Person;
+  workflowSteps: readonly Step[];
   selected: boolean;
   onToggleSelect: (id: string) => void;
   onMove: (id: string, step: Step) => void;
@@ -38,6 +39,7 @@ type PersonCardProps = {
 
 export function PersonCard({
   person,
+  workflowSteps,
   selected,
   onToggleSelect,
   onMove,
@@ -152,7 +154,7 @@ export function PersonCard({
               <ArrowRightLeftIcon className="size-4" /> Move to
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              {STEP_ORDER.map((s) => (
+              {workflowSteps.map((s) => (
                 <DropdownMenuItem
                   key={s}
                   disabled={s === person.step}

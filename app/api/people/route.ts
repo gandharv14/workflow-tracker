@@ -8,7 +8,7 @@ import type { Step } from "@/lib/steps";
 
 export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
+export async function GET(request?: Request) {
   const { projectId, response } = projectIdOrResponse(request);
   if (response) return response;
 

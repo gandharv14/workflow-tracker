@@ -5,6 +5,10 @@ import { toast } from "sonner";
 
 import { Board } from "./board";
 import * as api from "@/lib/api";
+import {
+  CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+  TRANSCRIPT_CONSENSUS_PROJECT_ID,
+} from "@/lib/projects";
 import { person } from "@/test/factories";
 
 vi.mock("@/lib/api", () => ({
@@ -25,6 +29,15 @@ const bulkRequest = vi.mocked(api.bulkRequest);
 const importPeopleRequest = vi.mocked(api.importPeopleRequest);
 const sendSentContractsEmailRequest = vi.mocked(api.sendSentContractsEmailRequest);
 const toastMock = vi.mocked(toast);
+
+function renderBoard(initialPeople: Parameters<typeof Board>[0]["initialPeople"]) {
+  return render(
+    <Board
+      projectId={CC_AGENTIC_CODING_TAIGA_PROJECT_ID}
+      initialPeople={initialPeople}
+    />,
+  );
+}
 
 beforeEach(() => {
   createPerson.mockReset();
@@ -62,9 +75,7 @@ describe("Board", () => {
       step: "background_check",
     });
 
-    const { container } = render(
-      <Board initialPeople={[older, ada, newer]} />,
-    );
+    const { container } = renderBoard([older, ada, newer]);
 
     expect(screen.getByText("3 people across 5 stages")).toBeInTheDocument();
     expect(container.textContent?.indexOf("newer@example.com")).toBeLessThan(
@@ -78,6 +89,62 @@ describe("Board", () => {
 
     await user.click(screen.getByLabelText("Clear search"));
     expect(screen.getByText("older@example.com")).toBeInTheDocument();
+  });
+
+  it("renders Transcript Consensus with only its workflow steps", async () => {
+    const user = userEvent.setup();
+    const transcriptPerson = person({
+      id: "transcript",
+      projectId: TRANSCRIPT_CONSENSUS_PROJECT_ID,
+      email: "transcript@example.com",
+      step: "background_check",
+    });
+    const created = person({
+      id: "created-transcript",
+      projectId: TRANSCRIPT_CONSENSUS_PROJECT_ID,
+      email: "created-transcript@example.com",
+      step: "in_production",
+    });
+    createPerson.mockResolvedValueOnce(created);
+
+    render(
+      <Board
+        projectId={TRANSCRIPT_CONSENSUS_PROJECT_ID}
+        initialPeople={[transcriptPerson]}
+      />,
+    );
+
+    expect(screen.getAllByText("Transcript Consensus").length).toBeGreaterThan(0);
+    expect(screen.getByText("1 person across 3 stages")).toBeInTheDocument();
+    expect(screen.getByText("Eval")).toBeInTheDocument();
+    expect(screen.getByText("Background Check + Gmail Creation")).toBeInTheDocument();
+    expect(screen.getByText("In Production")).toBeInTheDocument();
+    expect(screen.queryByText("Interview")).not.toBeInTheDocument();
+    expect(screen.queryByText("Sent Contracts")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Email Sent Contracts" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Add person/ }));
+    const stepSelect = screen.getByLabelText("Workflow step");
+    expect(
+      within(stepSelect).queryByRole("option", { name: "Interview" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(stepSelect).queryByRole("option", { name: "Sent Contracts" }),
+    ).not.toBeInTheDocument();
+    await user.type(screen.getByLabelText("Email"), "created-transcript@example.com");
+    await user.selectOptions(stepSelect, "in_production");
+    await user.click(screen.getByRole("button", { name: "Add person" }));
+
+    await waitFor(() =>
+      expect(createPerson).toHaveBeenCalledWith(TRANSCRIPT_CONSENSUS_PROJECT_ID, {
+        email: "created-transcript@example.com",
+        name: undefined,
+        role: undefined,
+        step: "in_production",
+      }),
+    );
   });
 
   it("downloads all queues as a single board CSV", async () => {
@@ -112,7 +179,7 @@ describe("Board", () => {
       updatedAt: "2026-01-02T00:00:00.000Z",
     });
 
-    render(<Board initialPeople={[productionPerson, evalPerson]} />);
+    renderBoard([productionPerson, evalPerson]);
 
     await user.type(screen.getByLabelText("Search people"), "eval");
     await user.click(screen.getByRole("button", { name: "Download all CSV" }));
@@ -142,11 +209,14 @@ describe("Board", () => {
     });
     sendSentContractsEmailRequest.mockResolvedValueOnce({ sent: 1 });
 
-    render(<Board initialPeople={[sent, evalPerson]} />);
+    renderBoard([sent, evalPerson]);
 
     await user.click(screen.getByRole("button", { name: "Email Sent Contracts" }));
 
     await waitFor(() => expect(sendSentContractsEmailRequest).toHaveBeenCalledTimes(1));
+    expect(sendSentContractsEmailRequest).toHaveBeenCalledWith(
+      CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+    );
     expect(toastMock.success).toHaveBeenCalledWith(
       "Sent 1 Sent Contracts email",
     );
@@ -162,7 +232,7 @@ describe("Board", () => {
     });
     createPerson.mockResolvedValueOnce(created);
 
-    render(<Board initialPeople={[]} />);
+    renderBoard([]);
 
     expect(screen.getByText("No one in the pipeline yet")).toBeInTheDocument();
     await user.click(screen.getAllByRole("button", { name: /Add person/ })[0]);
@@ -172,12 +242,15 @@ describe("Board", () => {
     await user.click(screen.getByRole("button", { name: "Add person" }));
 
     await waitFor(() => {
-      expect(createPerson).toHaveBeenCalledWith({
-        email: "created@example.com",
-        name: "Created Person",
-        role: undefined,
-        step: "background_check",
-      });
+      expect(createPerson).toHaveBeenCalledWith(
+        CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+        {
+          email: "created@example.com",
+          name: "Created Person",
+          role: undefined,
+          step: "background_check",
+        },
+      );
     });
     expect(await screen.findByText("created@example.com")).toBeInTheDocument();
     expect(toastMock.success).toHaveBeenCalledWith("Added created@example.com");
@@ -203,7 +276,7 @@ describe("Board", () => {
     });
     createPerson.mockResolvedValueOnce(created);
 
-    render(<Board initialPeople={[existing]} />);
+    renderBoard([existing]);
 
     const search = screen.getByLabelText("Search people");
     await user.type(search, "existing");
@@ -238,7 +311,7 @@ describe("Board", () => {
       step: "sent_contracts",
     });
 
-    render(<Board initialPeople={[stale]} />);
+    renderBoard([stale]);
 
     await user.click(screen.getByRole("button", { name: /Add person/ }));
     await user.type(screen.getByLabelText("Email"), "recreated@example.com");
@@ -246,12 +319,15 @@ describe("Board", () => {
     await user.click(screen.getByRole("button", { name: "Add person" }));
 
     await waitFor(() =>
-      expect(createPerson).toHaveBeenCalledWith({
-        email: "recreated@example.com",
-        name: "Recreated Record",
-        role: undefined,
-        step: "eval",
-      }),
+      expect(createPerson).toHaveBeenCalledWith(
+        CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+        {
+          email: "recreated@example.com",
+          name: "Recreated Record",
+          role: undefined,
+          step: "eval",
+        },
+      ),
     );
     expect(screen.getAllByLabelText("Open menu for recreated@example.com")).toHaveLength(
       1,
@@ -263,13 +339,21 @@ describe("Board", () => {
     await user.click(screen.getByRole("button", { name: "Sent Contracts" }));
 
     await waitFor(() =>
-      expect(patchPerson).toHaveBeenCalledWith("new-id", {
-        step: "sent_contracts",
-      }),
+      expect(patchPerson).toHaveBeenCalledWith(
+        CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+        "new-id",
+        {
+          step: "sent_contracts",
+        },
+      ),
     );
-    expect(patchPerson).not.toHaveBeenCalledWith("old-id", {
-      step: "sent_contracts",
-    });
+    expect(patchPerson).not.toHaveBeenCalledWith(
+      CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+      "old-id",
+      {
+        step: "sent_contracts",
+      },
+    );
   });
 
   it("retries a stale move against the recreated same-email person", async () => {
@@ -296,16 +380,21 @@ describe("Board", () => {
         step: "sent_contracts",
       });
 
-    render(<Board initialPeople={[stale]} />);
+    renderBoard([stale]);
 
     await user.click(screen.getByLabelText("Open menu for test@gmail.com"));
     await user.click(screen.getByRole("button", { name: "Sent Contracts" }));
 
     await waitFor(() => {
       expect(fetchPeople).toHaveBeenCalled();
-      expect(patchPerson).toHaveBeenNthCalledWith(2, "new-id", {
-        step: "sent_contracts",
-      });
+      expect(patchPerson).toHaveBeenNthCalledWith(
+        2,
+        CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+        "new-id",
+        {
+          step: "sent_contracts",
+        },
+      );
     });
     expect(screen.queryByText("Old Record")).not.toBeInTheDocument();
     expect(screen.getByText("Recreated Record")).toBeInTheDocument();
@@ -335,7 +424,7 @@ describe("Board", () => {
       });
     deletePersonRequest.mockResolvedValueOnce(undefined);
 
-    render(<Board initialPeople={[existing]} />);
+    renderBoard([existing]);
 
     await user.click(screen.getByLabelText("Open menu for person@example.com"));
     await user.click(await screen.findByText("Edit"));
@@ -353,9 +442,13 @@ describe("Board", () => {
       screen.getByRole("button", { name: "Background Check + Gmail Creation" }),
     );
     await waitFor(() =>
-      expect(patchPerson).toHaveBeenLastCalledWith("p1", {
-        step: "background_check",
-      }),
+      expect(patchPerson).toHaveBeenLastCalledWith(
+        CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+        "p1",
+        {
+          step: "background_check",
+        },
+      ),
     );
     expect(toastMock.success).toHaveBeenCalledWith(
       "Moved to Background Check + Gmail Creation",
@@ -363,7 +456,12 @@ describe("Board", () => {
 
     await user.click(screen.getByLabelText("Open menu for edited@example.com"));
     await user.click(await screen.findByText("Delete"));
-    await waitFor(() => expect(deletePersonRequest).toHaveBeenCalledWith("p1"));
+    await waitFor(() =>
+      expect(deletePersonRequest).toHaveBeenCalledWith(
+        CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+        "p1",
+      ),
+    );
     expect(screen.queryByText("edited@example.com")).not.toBeInTheDocument();
     expect(toastMock.success).toHaveBeenCalledWith("Removed edited@example.com");
   });
@@ -376,7 +474,7 @@ describe("Board", () => {
       .mockResolvedValueOnce({ updated: [{ ...one, step: "background_check" }] })
       .mockRejectedValueOnce(new Error("Bulk delete failed"));
 
-    render(<Board initialPeople={[one, two]} />);
+    renderBoard([one, two]);
 
     await user.click(screen.getByLabelText("Select one@example.com"));
     await user.click(screen.getByLabelText("Select two@example.com"));
@@ -387,11 +485,14 @@ describe("Board", () => {
       screen.getByRole("button", { name: "Background Check + Gmail Creation" }),
     );
     await waitFor(() =>
-      expect(bulkRequest).toHaveBeenCalledWith({
-        action: "move",
-        ids: ["one", "two"],
-        step: "background_check",
-      }),
+      expect(bulkRequest).toHaveBeenCalledWith(
+        CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+        {
+          action: "move",
+          ids: ["one", "two"],
+          step: "background_check",
+        },
+      ),
     );
     expect(screen.queryByText("2 selected")).not.toBeInTheDocument();
     expect(screen.queryByText("two@example.com")).not.toBeInTheDocument();
@@ -447,7 +548,7 @@ describe("Board", () => {
       { type: "text/csv" },
     );
 
-    render(<Board initialPeople={[existing]} />);
+    renderBoard([existing]);
 
     await user.click(screen.getByRole("button", { name: "Upload CSV" }));
     expect(screen.getByText("email,name,role,step")).toBeInTheDocument();
@@ -461,24 +562,27 @@ describe("Board", () => {
     );
 
     await waitFor(() =>
-      expect(importPeopleRequest).toHaveBeenCalledWith({
-        people: [
-          {
-            email: "existing@example.com",
-            name: "Existing Updated",
-            role: "Lead",
-            step: "sent_contracts",
-            fields: { name: true, role: true, step: true },
-          },
-          {
-            email: "new@example.com",
-            name: "New User",
-            role: "Reviewer",
-            step: "background_check",
-            fields: { name: true, role: true, step: true },
-          },
-        ],
-      }),
+      expect(importPeopleRequest).toHaveBeenCalledWith(
+        CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+        {
+          people: [
+            {
+              email: "existing@example.com",
+              name: "Existing Updated",
+              role: "Lead",
+              step: "sent_contracts",
+              fields: { name: true, role: true, step: true },
+            },
+            {
+              email: "new@example.com",
+              name: "New User",
+              role: "Reviewer",
+              step: "background_check",
+              fields: { name: true, role: true, step: true },
+            },
+          ],
+        },
+      ),
     );
     expect(screen.queryByText("Old Role")).not.toBeInTheDocument();
     expect(await screen.findByText("Existing Updated")).toBeInTheDocument();
@@ -499,7 +603,7 @@ describe("Board", () => {
     patchPerson.mockRejectedValueOnce(new Error("Move failed"));
     deletePersonRequest.mockRejectedValueOnce(new Error("Delete failed"));
 
-    render(<Board initialPeople={[existing]} />);
+    renderBoard([existing]);
 
     await user.click(screen.getByLabelText("Open menu for rollback@example.com"));
     await user.click(screen.getByRole("button", { name: "Sent Contracts" }));
@@ -533,13 +637,16 @@ describe("Board", () => {
       Object.assign(new Error("Person not found"), { status: 404 }),
     );
 
-    render(<Board initialPeople={[existing]} />);
+    renderBoard([existing]);
 
     await user.click(screen.getByLabelText("Open menu for missing@example.com"));
     await user.click(await screen.findByText("Delete"));
 
     await waitFor(() =>
-      expect(deletePersonRequest).toHaveBeenCalledWith("missing-id"),
+      expect(deletePersonRequest).toHaveBeenCalledWith(
+        CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+        "missing-id",
+      ),
     );
     expect(screen.queryByText("missing@example.com")).not.toBeInTheDocument();
     expect(toastMock.success).toHaveBeenCalledWith("Removed missing@example.com");
@@ -557,15 +664,19 @@ describe("Board", () => {
       Object.assign(new Error("Person not found"), { status: 404 }),
     );
 
-    render(<Board initialPeople={[stale]} />);
+    renderBoard([stale]);
 
     await user.click(screen.getByLabelText("Open menu for stale@example.com"));
     await user.click(screen.getByRole("button", { name: "Sent Contracts" }));
 
     await waitFor(() =>
-      expect(patchPerson).toHaveBeenCalledWith("stale-id", {
-        step: "sent_contracts",
-      }),
+      expect(patchPerson).toHaveBeenCalledWith(
+        CC_AGENTIC_CODING_TAIGA_PROJECT_ID,
+        "stale-id",
+        {
+          step: "sent_contracts",
+        },
+      ),
     );
     expect(screen.queryByText("stale@example.com")).not.toBeInTheDocument();
     expect(toastMock.error).toHaveBeenCalledWith("Person no longer exists");

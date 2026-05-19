@@ -1,3 +1,4 @@
+import { projectQuery, type ProjectId } from "./projects";
 import type { Step } from "./steps";
 import type { Person } from "./types";
 
@@ -25,18 +26,25 @@ async function handle<T>(res: Response): Promise<T> {
   return (await res.json()) as T;
 }
 
-export async function fetchPeople(): Promise<Person[]> {
-  const res = await fetch("/api/people", { cache: "no-store" });
+function peoplePath(projectId: ProjectId, suffix = ""): string {
+  return `/api/people${suffix}?${projectQuery(projectId)}`;
+}
+
+export async function fetchPeople(projectId: ProjectId): Promise<Person[]> {
+  const res = await fetch(peoplePath(projectId), { cache: "no-store" });
   return handle<Person[]>(res);
 }
 
-export async function createPerson(input: {
-  email: string;
-  name?: string;
-  role?: string;
-  step?: Step;
-}): Promise<Person> {
-  const res = await fetch("/api/people", {
+export async function createPerson(
+  projectId: ProjectId,
+  input: {
+    email: string;
+    name?: string;
+    role?: string;
+    step?: Step;
+  },
+): Promise<Person> {
+  const res = await fetch(peoplePath(projectId), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -45,10 +53,11 @@ export async function createPerson(input: {
 }
 
 export async function patchPerson(
+  projectId: ProjectId,
   id: string,
   patch: { email?: string; name?: string | null; role?: string | null; step?: Step },
 ): Promise<Person> {
-  const res = await fetch(`/api/people/${encodeURIComponent(id)}`, {
+  const res = await fetch(peoplePath(projectId, `/${encodeURIComponent(id)}`), {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(patch),
@@ -56,20 +65,26 @@ export async function patchPerson(
   return handle<Person>(res);
 }
 
-export async function deletePersonRequest(id: string): Promise<void> {
-  const res = await fetch(`/api/people/${encodeURIComponent(id)}`, {
+export async function deletePersonRequest(
+  projectId: ProjectId,
+  id: string,
+): Promise<void> {
+  const res = await fetch(peoplePath(projectId, `/${encodeURIComponent(id)}`), {
     method: "DELETE",
   });
   if (res.status === 404) return;
   if (!res.ok) await handle<unknown>(res);
 }
 
-export async function bulkRequest(input: {
-  action: "move" | "delete";
-  ids: string[];
-  step?: Step;
-}): Promise<{ updated?: Person[]; deleted?: number }> {
-  const res = await fetch(`/api/people/bulk`, {
+export async function bulkRequest(
+  projectId: ProjectId,
+  input: {
+    action: "move" | "delete";
+    ids: string[];
+    step?: Step;
+  },
+): Promise<{ updated?: Person[]; deleted?: number }> {
+  const res = await fetch(peoplePath(projectId, "/bulk"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -77,16 +92,19 @@ export async function bulkRequest(input: {
   return handle<{ updated?: Person[]; deleted?: number }>(res);
 }
 
-export async function importPeopleRequest(input: {
-  people: Array<{
-    email: string;
-    name?: string;
-    role?: string;
-    step?: Step;
-    fields?: { name?: boolean; role?: boolean; step?: boolean };
-  }>;
-}): Promise<{ created: number; updated: number; people: Person[] }> {
-  const res = await fetch(`/api/people/import`, {
+export async function importPeopleRequest(
+  projectId: ProjectId,
+  input: {
+    people: Array<{
+      email: string;
+      name?: string;
+      role?: string;
+      step?: Step;
+      fields?: { name?: boolean; role?: boolean; step?: boolean };
+    }>;
+  },
+): Promise<{ created: number; updated: number; people: Person[] }> {
+  const res = await fetch(peoplePath(projectId, "/import"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -94,8 +112,10 @@ export async function importPeopleRequest(input: {
   return handle<{ created: number; updated: number; people: Person[] }>(res);
 }
 
-export async function sendSentContractsEmailRequest(): Promise<{ sent: number }> {
-  const res = await fetch(`/api/people/sent-contracts-email`, {
+export async function sendSentContractsEmailRequest(
+  projectId: ProjectId,
+): Promise<{ sent: number }> {
+  const res = await fetch(peoplePath(projectId, "/sent-contracts-email"), {
     method: "POST",
   });
   return handle<{ sent: number }>(res);

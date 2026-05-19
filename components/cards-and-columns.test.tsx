@@ -5,7 +5,11 @@ import { describe, expect, it, vi } from "vitest";
 import { BulkActionBar } from "./bulk-action-bar";
 import { Column } from "./column";
 import { PersonCard } from "./person-card";
+import { getProjectSteps } from "@/lib/steps";
+import { CC_AGENTIC_CODING_TAIGA_PROJECT_ID } from "@/lib/projects";
 import { person } from "@/test/factories";
+
+const workflowSteps = getProjectSteps(CC_AGENTIC_CODING_TAIGA_PROJECT_ID);
 
 describe("PersonCard", () => {
   it("renders person details, selection state, and basic card actions", async () => {
@@ -23,6 +27,7 @@ describe("PersonCard", () => {
     render(
       <PersonCard
         person={existing}
+        workflowSteps={workflowSteps}
         selected
         onToggleSelect={onToggleSelect}
         onMove={vi.fn()}
@@ -51,6 +56,7 @@ describe("PersonCard", () => {
     render(
       <PersonCard
         person={person({ email: "no.name@example.com", name: undefined })}
+        workflowSteps={workflowSteps}
         selected={false}
         onToggleSelect={vi.fn()}
         onMove={vi.fn()}
@@ -74,6 +80,7 @@ describe("Column", () => {
     const { rerender } = render(
       <Column
         step="eval"
+        workflowSteps={workflowSteps}
         people={[person({ id: "p1", email: "p1@example.com" })]}
         totalCount={3}
         hasActiveSearch
@@ -98,6 +105,7 @@ describe("Column", () => {
     rerender(
       <Column
         step="eval"
+        workflowSteps={workflowSteps}
         people={[]}
         totalCount={3}
         hasActiveSearch
@@ -115,6 +123,7 @@ describe("Column", () => {
     rerender(
       <Column
         step="eval"
+        workflowSteps={workflowSteps}
         people={[]}
         totalCount={0}
         hasActiveSearch={false}
@@ -137,6 +146,7 @@ describe("Column", () => {
     const { rerender } = render(
       <Column
         step="sent_contracts"
+        workflowSteps={workflowSteps}
         people={[]}
         totalCount={0}
         hasActiveSearch={false}
@@ -156,6 +166,7 @@ describe("Column", () => {
     rerender(
       <Column
         step="sent_contracts"
+        workflowSteps={workflowSteps}
         people={[person({ id: "sent", step: "sent_contracts" })]}
         totalCount={1}
         hasActiveSearch={false}
@@ -175,6 +186,7 @@ describe("Column", () => {
     rerender(
       <Column
         step="eval"
+        workflowSteps={workflowSteps}
         people={[]}
         totalCount={0}
         hasActiveSearch={false}
@@ -204,6 +216,7 @@ describe("BulkActionBar", () => {
     const { rerender } = render(
       <BulkActionBar
         count={0}
+        workflowSteps={workflowSteps}
         onMove={onMove}
         onDelete={onDelete}
         onClear={onClear}
@@ -214,6 +227,7 @@ describe("BulkActionBar", () => {
     rerender(
       <BulkActionBar
         count={2}
+        workflowSteps={workflowSteps}
         onMove={onMove}
         onDelete={onDelete}
         onClear={onClear}

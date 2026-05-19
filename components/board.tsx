@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import {
   DndContext,
   DragOverlay,
@@ -32,21 +33,33 @@ import {
   sendSentContractsEmailRequest,
 } from "@/lib/api";
 import { serializePeopleCsv, type CsvPersonInput } from "@/lib/csv";
-import { normalizeStep, STEP_LABELS, STEP_ORDER, type Step } from "@/lib/steps";
+import {
+  getDefaultProjectStep,
+  getProjectSteps,
+  normalizeProjectStep,
+  STEP_LABELS,
+  type Step,
+} from "@/lib/steps";
+import { getProject, PROJECTS, projectQuery, type ProjectId } from "@/lib/projects";
 import type { Person } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 type BoardProps = {
+  projectId: ProjectId;
   initialPeople: Person[];
 };
 
-function makeStepRecord<T>(createValue: () => T): Record<Step, T> {
+function makeStepRecord<T>(
+  steps: readonly Step[],
+  createValue: () => T,
+): Record<Step, T> {
   return Object.fromEntries(
-    STEP_ORDER.map((step) => [step, createValue()]),
+    steps.map((step) => [step, createValue()]),
   ) as Record<Step, T>;
 }
 
-function normalizePersonStep(person: Person): Person {
-  const step = normalizeStep(person.step) ?? "eval";
+function normalizePersonStep(projectId: ProjectId, person: Person): Person {
+  const step = normalizeProjectStep(projectId, person.step) ?? getDefaultProjectStep(projectId);
   return step === person.step ? person : { ...person, step };
 }
 
@@ -74,9 +87,12 @@ function downloadCsv(filename: string, csv: string): void {
   URL.revokeObjectURL(url);
 }
 
-export function Board({ initialPeople }: BoardProps) {
+export function Board({ projectId, initialPeople }: BoardProps) {
+  const project = getProject(projectId);
+  const projectSteps = React.useMemo(() => getProjectSteps(projectId), [projectId]);
+  const defaultStep = getDefaultProjectStep(projectId);
   const [people, setPeople] = React.useState<Person[]>(() =>
-    initialPeople.map(normalizePersonStep),
+    initialPeople.map((person) => normalizePersonStep(projectId, person)),
   );
   const [query, setQuery] = React.useState("");
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(
@@ -84,7 +100,7 @@ export function Board({ initialPeople }: BoardProps) {
   );
   const [addOpen, setAddOpen] = React.useState(false);
   const [uploadOpen, setUploadOpen] = React.useState(false);
-  const [addInitialStep, setAddInitialStep] = React.useState<Step>("eval");
+  const [addInitialStep, setAddInitialStep] = React.useState<Step>(defaultStep);
   const [editing, setEditing] = React.useState<Person | null>(null);
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [isEmailingSentContracts, setIsEmailingSentContracts] =
@@ -113,34 +129,43 @@ export function Board({ initialPeople }: BoardProps) {
   }, [people, trimmedQuery]);
 
   const allPeopleByStep = React.useMemo(() => {
-    const groups = makeStepRecord<Person[]>(() => []);
-    for (const p of people) groups[normalizeStep(p.step) ?? "eval"].push(p);
-    for (const s of STEP_ORDER) {
+    const groups = makeStepRecord<Person[]>(projectSteps, () => []);
+    for (const p of people) {
+      const step = normalizeProjectStep(projectId, p.step) ?? defaultStep;
+      groups[step].push(p);
+    }
+    for (const s of projectSteps) {
       groups[s].sort(
         (a, b) =>
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
       );
     }
     return groups;
-  }, [people]);
+  }, [defaultStep, people, projectId, projectSteps]);
 
   const peopleByStep = React.useMemo(() => {
-    const groups = makeStepRecord<Person[]>(() => []);
-    for (const p of filteredPeople) groups[normalizeStep(p.step) ?? "eval"].push(p);
-    for (const s of STEP_ORDER) {
+    const groups = makeStepRecord<Person[]>(projectSteps, () => []);
+    for (const p of filteredPeople) {
+      const step = normalizeProjectStep(projectId, p.step) ?? defaultStep;
+      groups[step].push(p);
+    }
+    for (const s of projectSteps) {
       groups[s].sort(
         (a, b) =>
           new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
       );
     }
     return groups;
-  }, [filteredPeople]);
+  }, [defaultStep, filteredPeople, projectId, projectSteps]);
 
   const totalsByStep = React.useMemo(() => {
-    const totals = makeStepRecord(() => 0);
-    for (const p of people) totals[normalizeStep(p.step) ?? "eval"] += 1;
+    const totals = makeStepRecord(projectSteps, () => 0);
+    for (const p of people) {
+      const step = normalizeProjectStep(projectId, p.step) ?? defaultStep;
+      totals[step] += 1;
+    }
     return totals;
-  }, [people]);
+  }, [defaultStep, people, projectId, projectSteps]);
 
   const toggleSelect = React.useCallback((id: string) => {
     setSelectedIds((prev) => {
@@ -166,14 +191,19 @@ export function Board({ initialPeople }: BoardProps) {
       };
       setPeople((prev) => prev.map((p) => (p.id === id ? optimistic : p)));
       try {
-        const updated = normalizePersonStep(await patchPerson(id, { step }));
+        const updated = normalizePersonStep(
+          projectId,
+          await patchPerson(projectId, id, { step }),
+        );
         setPeople((prev) => prev.map((p) => (p.id === id ? updated : p)));
         toast.success(`Moved to ${STEP_LABELS[step]}`);
       } catch (err) {
         if (isNotFoundError(err)) {
           let latestPeople: Person[] | null = null;
           try {
-            latestPeople = (await fetchPeople()).map(normalizePersonStep);
+            latestPeople = (await fetchPeople(projectId)).map((person) =>
+              normalizePersonStep(projectId, person),
+            );
           } catch {
             // Keep the stale-card fallback below if reconciliation fails.
           }
@@ -185,7 +215,8 @@ export function Board({ initialPeople }: BoardProps) {
           if (replacement) {
             try {
               const updated = normalizePersonStep(
-                await patchPerson(replacement.id, { step }),
+                projectId,
+                await patchPerson(projectId, replacement.id, { step }),
               );
               setPeople([
                 ...latestPeopleList.filter(
@@ -225,12 +256,15 @@ export function Board({ initialPeople }: BoardProps) {
         toast.error(err instanceof Error ? err.message : "Failed to move");
       }
     },
-    [peopleById],
+    [peopleById, projectId],
   );
 
   const handleAdd = React.useCallback(
     async (data: { email: string; name?: string; role?: string; step: Step }) => {
-      const created = normalizePersonStep(await createPerson(data));
+      const created = normalizePersonStep(
+        projectId,
+        await createPerson(projectId, data),
+      );
       setPeople((prev) => [
         ...prev.filter((p) => !sameNormalizedEmail(p.email, created.email)),
         created,
@@ -242,7 +276,7 @@ export function Board({ initialPeople }: BoardProps) {
       }
       toast.success(`Added ${created.email}`);
     },
-    [trimmedQuery],
+    [projectId, trimmedQuery],
   );
 
   const handleEditSubmit = React.useCallback(
@@ -250,17 +284,22 @@ export function Board({ initialPeople }: BoardProps) {
       id: string,
       patch: { email: string; name: string | null; role: string | null },
     ) => {
-      const updated = normalizePersonStep(await patchPerson(id, patch));
+      const updated = normalizePersonStep(
+        projectId,
+        await patchPerson(projectId, id, patch),
+      );
       setPeople((prev) => prev.map((p) => (p.id === id ? updated : p)));
       toast.success("Updated");
     },
-    [],
+    [projectId],
   );
 
   const handleCsvImport = React.useCallback(
     async (rows: CsvPersonInput[]) => {
-      const result = await importPeopleRequest({ people: rows });
-      const importedPeople = result.people.map(normalizePersonStep);
+      const result = await importPeopleRequest(projectId, { people: rows });
+      const importedPeople = result.people.map((person) =>
+        normalizePersonStep(projectId, person),
+      );
       const importedEmails = new Set(
         importedPeople.map((person) => person.email.trim().toLowerCase()),
       );
@@ -281,31 +320,33 @@ export function Board({ initialPeople }: BoardProps) {
         `Imported ${total} ${total === 1 ? "user" : "users"} (${result.created} new, ${result.updated} updated)`,
       );
     },
-    [trimmedQuery],
+    [projectId, trimmedQuery],
   );
 
   const handleDownloadStep = React.useCallback(
     (step: Step) => {
       const rows = allPeopleByStep[step];
       if (rows.length === 0) return;
-      downloadCsv(`workflow-${step}.csv`, serializePeopleCsv(rows));
+      downloadCsv(`workflow-${projectId}-${step}.csv`, serializePeopleCsv(rows));
       toast.success(`Downloaded ${STEP_LABELS[step]} CSV`);
     },
-    [allPeopleByStep],
+    [allPeopleByStep, projectId],
   );
 
   const handleDownloadBoard = React.useCallback(() => {
     if (people.length === 0) return;
-    const rows = STEP_ORDER.flatMap((step) => allPeopleByStep[step]);
-    downloadCsv("workflow-board.csv", serializePeopleCsv(rows));
+    const rows = projectSteps.flatMap((step) => allPeopleByStep[step]);
+    downloadCsv(`workflow-${projectId}.csv`, serializePeopleCsv(rows));
     toast.success("Downloaded board CSV");
-  }, [allPeopleByStep, people.length]);
+  }, [allPeopleByStep, people.length, projectId, projectSteps]);
 
   const handleEmailSentContracts = React.useCallback(async () => {
-    if (totalsByStep.sent_contracts === 0 || isEmailingSentContracts) return;
+    if ((totalsByStep.sent_contracts ?? 0) === 0 || isEmailingSentContracts) {
+      return;
+    }
     setIsEmailingSentContracts(true);
     try {
-      const result = await sendSentContractsEmailRequest();
+      const result = await sendSentContractsEmailRequest(projectId);
       toast.success(
         `Sent ${result.sent} Sent Contracts ${result.sent === 1 ? "email" : "emails"}`,
       );
@@ -314,7 +355,7 @@ export function Board({ initialPeople }: BoardProps) {
     } finally {
       setIsEmailingSentContracts(false);
     }
-  }, [isEmailingSentContracts, totalsByStep.sent_contracts]);
+  }, [isEmailingSentContracts, projectId, totalsByStep]);
 
   const handleDelete = React.useCallback(
     async (id: string) => {
@@ -328,7 +369,7 @@ export function Board({ initialPeople }: BoardProps) {
         return next;
       });
       try {
-        await deletePersonRequest(id);
+        await deletePersonRequest(projectId, id);
         toast.success(`Removed ${previous.email}`);
       } catch (err) {
         if (isNotFoundError(err)) {
@@ -347,7 +388,7 @@ export function Board({ initialPeople }: BoardProps) {
         toast.error(err instanceof Error ? err.message : "Failed to delete");
       }
     },
-    [peopleById],
+    [peopleById, projectId],
   );
 
   const handleBulkMove = React.useCallback(
@@ -363,8 +404,10 @@ export function Board({ initialPeople }: BoardProps) {
       );
       setPeople(optimistic);
       try {
-        const result = await bulkRequest({ action: "move", ids, step });
-        const confirmed = (result.updated ?? []).map(normalizePersonStep);
+        const result = await bulkRequest(projectId, { action: "move", ids, step });
+        const confirmed = (result.updated ?? []).map((person) =>
+          normalizePersonStep(projectId, person),
+        );
         const confirmedById = new Map(
           confirmed.map((person) => [person.id, person]),
         );
@@ -386,7 +429,7 @@ export function Board({ initialPeople }: BoardProps) {
         toast.error(err instanceof Error ? err.message : "Bulk move failed");
       }
     },
-    [people, selectedIds, clearSelection],
+    [people, selectedIds, clearSelection, projectId],
   );
 
   const handleBulkDelete = React.useCallback(async () => {
@@ -395,7 +438,7 @@ export function Board({ initialPeople }: BoardProps) {
     const snapshot = people;
     setPeople((prev) => prev.filter((p) => !selectedIds.has(p.id)));
     try {
-      const result = await bulkRequest({ action: "delete", ids });
+      const result = await bulkRequest(projectId, { action: "delete", ids });
       const deleted = result.deleted ?? 0;
       toast.success(`Removed ${deleted} ${deleted === 1 ? "person" : "people"}`);
       clearSelection();
@@ -403,7 +446,7 @@ export function Board({ initialPeople }: BoardProps) {
       setPeople(snapshot);
       toast.error(err instanceof Error ? err.message : "Bulk delete failed");
     }
-  }, [people, selectedIds, clearSelection]);
+  }, [people, selectedIds, clearSelection, projectId]);
 
   const onDragStart = (event: DragStartEvent) => {
     setActiveId(String(event.active.id));
@@ -416,7 +459,7 @@ export function Board({ initialPeople }: BoardProps) {
     const overId = String(over.id);
     if (!overId.startsWith("col-")) return;
     const step = overId.slice("col-".length) as Step;
-    if (!STEP_ORDER.includes(step)) return;
+    if (!projectSteps.includes(step)) return;
     void moveOne(String(active.id), step);
   };
 
@@ -424,57 +467,106 @@ export function Board({ initialPeople }: BoardProps) {
   const hasActiveSearch = trimmedQuery.length > 0;
   const totalAll = people.length;
   const visibleAll = filteredPeople.length;
+  const stageLabel = projectSteps.length === 1 ? "stage" : "stages";
 
   return (
-    <div className="flex min-h-screen flex-col">
-      <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-[1400px] flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
-          <div className="mr-2 flex flex-col">
-            <h1 className="text-base font-semibold tracking-tight">
-              Workflow Tracker
-            </h1>
-            <p className="text-[11px] text-muted-foreground">
-              {totalAll} {totalAll === 1 ? "person" : "people"} across{" "}
-              {STEP_ORDER.length} stages
-            </p>
-          </div>
-          <SearchBar
-            value={query}
-            onChange={setQuery}
-            resultCount={visibleAll}
-            totalCount={totalAll}
-          />
-          <div className="ml-auto flex items-center gap-2">
-            {selectedIds.size > 0 ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={clearSelection}
-              >
-                Clear ({selectedIds.size})
-              </Button>
-            ) : null}
-            <Button
-              variant="outline"
-              onClick={handleDownloadBoard}
-              disabled={people.length === 0}
-            >
-              <DownloadIcon /> Download all CSV
-            </Button>
-            <Button variant="outline" onClick={() => setUploadOpen(true)}>
-              <UploadIcon /> Upload CSV
-            </Button>
-            <Button
-              onClick={() => {
-                setAddInitialStep("eval");
-                setAddOpen(true);
-              }}
-            >
-              <PlusIcon /> Add person
-            </Button>
-          </div>
+    <div className="flex min-h-screen bg-background">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 border-r bg-muted/25 p-4 md:block">
+        <div className="mb-5">
+          <h1 className="text-base font-semibold tracking-tight">
+            Workflow Tracker
+          </h1>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Switch between project pipelines.
+          </p>
         </div>
-      </header>
+        <nav aria-label="Projects" className="grid gap-2">
+          {PROJECTS.map((item) => {
+            const active = item.id === projectId;
+            return (
+              <Link
+                key={item.id}
+                href={`/?${projectQuery(item.id)}`}
+                aria-current={active ? "page" : undefined}
+                className={cn(
+                  "rounded-lg border px-3 py-2 text-left transition-colors",
+                  active
+                    ? "border-primary bg-background text-foreground shadow-sm"
+                    : "border-transparent text-muted-foreground hover:bg-background/70 hover:text-foreground",
+                )}
+              >
+                <span className="block text-sm font-medium">{item.name}</span>
+                <span className="mt-0.5 block text-[11px]">{item.description}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </aside>
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-30 border-b bg-background/95 backdrop-blur">
+          <div className="mx-auto flex w-full max-w-[1400px] flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
+            <div className="mr-2 flex flex-col">
+              <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                Active project
+              </span>
+              <h1 className="text-base font-semibold tracking-tight">
+                {project.name}
+              </h1>
+              <p className="text-[11px] text-muted-foreground">
+                {totalAll} {totalAll === 1 ? "person" : "people"} across{" "}
+                {projectSteps.length} {stageLabel}
+              </p>
+            </div>
+            <div className="flex w-full gap-2 md:hidden">
+              {PROJECTS.map((item) => (
+                <Link
+                  key={item.id}
+                  href={`/?${projectQuery(item.id)}`}
+                  className={cn(
+                    "flex-1 rounded-md border px-2 py-1.5 text-center text-xs font-medium",
+                    item.id === projectId
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border text-muted-foreground",
+                  )}
+                >
+                  {item.name}
+                </Link>
+              ))}
+            </div>
+            <SearchBar
+              value={query}
+              onChange={setQuery}
+              resultCount={visibleAll}
+              totalCount={totalAll}
+            />
+            <div className="ml-auto flex items-center gap-2">
+              {selectedIds.size > 0 ? (
+                <Button variant="ghost" size="sm" onClick={clearSelection}>
+                  Clear ({selectedIds.size})
+                </Button>
+              ) : null}
+              <Button
+                variant="outline"
+                onClick={handleDownloadBoard}
+                disabled={people.length === 0}
+              >
+                <DownloadIcon /> Download all CSV
+              </Button>
+              <Button variant="outline" onClick={() => setUploadOpen(true)}>
+                <UploadIcon /> Upload CSV
+              </Button>
+              <Button
+                onClick={() => {
+                  setAddInitialStep(defaultStep);
+                  setAddOpen(true);
+                }}
+              >
+                <PlusIcon /> Add person
+              </Button>
+            </div>
+          </div>
+        </header>
 
       <main className="flex-1 px-4 py-4 sm:px-6">
         <DndContext
@@ -483,11 +575,19 @@ export function Board({ initialPeople }: BoardProps) {
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
         >
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
-            {STEP_ORDER.map((step) => (
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-4 sm:grid-cols-2",
+              projectSteps.length <= 3
+                ? "lg:grid-cols-3"
+                : "lg:grid-cols-3 xl:grid-cols-5",
+            )}
+          >
+            {projectSteps.map((step) => (
               <Column
                 key={step}
                 step={step}
+                workflowSteps={projectSteps}
                 people={peopleByStep[step]}
                 totalCount={totalsByStep[step]}
                 hasActiveSearch={hasActiveSearch}
@@ -497,7 +597,11 @@ export function Board({ initialPeople }: BoardProps) {
                 onEdit={setEditing}
                 onDelete={handleDelete}
                 onDownload={handleDownloadStep}
-                onEmailSentContracts={handleEmailSentContracts}
+                onEmailSentContracts={
+                  project.canEmailSentContracts
+                    ? handleEmailSentContracts
+                    : undefined
+                }
                 isEmailingSentContracts={isEmailingSentContracts}
                 onAddHere={(s) => {
                   setAddInitialStep(s);
@@ -512,6 +616,7 @@ export function Board({ initialPeople }: BoardProps) {
               <div className="w-72 rotate-1">
                 <PersonCard
                   person={activePerson}
+                  workflowSteps={projectSteps}
                   selected={selectedIds.has(activePerson.id)}
                   onToggleSelect={() => {}}
                   onMove={() => {}}
@@ -533,7 +638,7 @@ export function Board({ initialPeople }: BoardProps) {
             <Button
               className="mt-4"
               onClick={() => {
-                setAddInitialStep("eval");
+                setAddInitialStep(defaultStep);
                 setAddOpen(true);
               }}
             >
@@ -545,6 +650,7 @@ export function Board({ initialPeople }: BoardProps) {
 
       <BulkActionBar
         count={selectedIds.size}
+        workflowSteps={projectSteps}
         onMove={handleBulkMove}
         onDelete={handleBulkDelete}
         onClear={clearSelection}
@@ -553,6 +659,7 @@ export function Board({ initialPeople }: BoardProps) {
       <AddPersonDialog
         open={addOpen}
         initialStep={addInitialStep}
+        workflowSteps={projectSteps}
         onOpenChange={setAddOpen}
         onSubmit={handleAdd}
       />
@@ -567,9 +674,11 @@ export function Board({ initialPeople }: BoardProps) {
 
       <UploadCsvDialog
         open={uploadOpen}
+        workflowSteps={projectSteps}
         onOpenChange={setUploadOpen}
         onSubmit={handleCsvImport}
       />
+      </div>
     </div>
   );
 }

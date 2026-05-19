@@ -9,10 +9,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { STEP_LABELS, STEP_ORDER, type Step } from "@/lib/steps";
+import { STEP_LABELS, type Step } from "@/lib/steps";
 
 type BulkActionBarProps = {
   count: number;
+  workflowSteps: readonly Step[];
   onMove: (step: Step) => void;
   onDelete: () => void;
   onClear: () => void;
@@ -20,6 +21,7 @@ type BulkActionBarProps = {
 
 export function BulkActionBar({
   count,
+  workflowSteps,
   onMove,
   onDelete,
   onClear,
@@ -42,7 +44,7 @@ export function BulkActionBar({
             }
           />
           <DropdownMenuContent align="center" side="top" sideOffset={6}>
-            {STEP_ORDER.map((s) => (
+            {workflowSteps.map((s) => (
               <DropdownMenuItem key={s} onClick={() => onMove(s)}>
                 {STEP_LABELS[s]}
               </DropdownMenuItem>

@@ -16,6 +16,7 @@ import type { Person } from "@/lib/types";
 
 type ColumnProps = {
   step: Step;
+  workflowSteps: readonly Step[];
   people: Person[];
   totalCount: number;
   hasActiveSearch: boolean;
@@ -32,6 +33,7 @@ type ColumnProps = {
 
 export function Column({
   step,
+  workflowSteps,
   people,
   totalCount,
   hasActiveSearch,
@@ -127,6 +129,7 @@ export function Column({
             <PersonCard
               key={person.id}
               person={person}
+              workflowSteps={workflowSteps}
               selected={selectedIds.has(person.id)}
               onToggleSelect={onToggleSelect}
               onMove={onMove}

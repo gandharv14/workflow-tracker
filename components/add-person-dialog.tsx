@@ -14,11 +14,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { STEP_LABELS, STEP_ORDER, type Step } from "@/lib/steps";
+import { STEP_LABELS, type Step } from "@/lib/steps";
 
 type AddPersonDialogProps = {
   open: boolean;
   initialStep: Step;
+  workflowSteps: readonly Step[];
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: {
     email: string;
@@ -31,6 +32,7 @@ type AddPersonDialogProps = {
 export function AddPersonDialog({
   open,
   initialStep,
+  workflowSteps,
   onOpenChange,
   onSubmit,
 }: AddPersonDialogProps) {
@@ -40,6 +42,7 @@ export function AddPersonDialog({
         <AddPersonForm
           key={initialStep}
           initialStep={initialStep}
+          workflowSteps={workflowSteps}
           onOpenChange={onOpenChange}
           onSubmit={onSubmit}
         />
@@ -50,6 +53,7 @@ export function AddPersonDialog({
 
 function AddPersonForm({
   initialStep,
+  workflowSteps,
   onOpenChange,
   onSubmit,
 }: Omit<AddPersonDialogProps, "open">) {
@@ -143,7 +147,7 @@ function AddPersonForm({
             className="h-8 rounded-md border border-input bg-background px-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-ring/40"
             disabled={submitting}
           >
-            {STEP_ORDER.map((s) => (
+            {workflowSteps.map((s) => (
               <option key={s} value={s}>
                 {STEP_LABELS[s]}
               </option>

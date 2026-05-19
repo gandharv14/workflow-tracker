@@ -14,29 +14,36 @@ import {
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { parsePeopleCsv, type CsvPersonInput } from "@/lib/csv";
-import { STEP_LABELS, STEP_ORDER } from "@/lib/steps";
+import { STEP_LABELS, type Step } from "@/lib/steps";
 
 type UploadCsvDialogProps = {
   open: boolean;
+  workflowSteps: readonly Step[];
   onOpenChange: (open: boolean) => void;
   onSubmit: (people: CsvPersonInput[]) => Promise<void>;
 };
 
 export function UploadCsvDialog({
   open,
+  workflowSteps,
   onOpenChange,
   onSubmit,
 }: UploadCsvDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       {open ? (
-        <UploadCsvForm onOpenChange={onOpenChange} onSubmit={onSubmit} />
+        <UploadCsvForm
+          workflowSteps={workflowSteps}
+          onOpenChange={onOpenChange}
+          onSubmit={onSubmit}
+        />
       ) : null}
     </Dialog>
   );
 }
 
 function UploadCsvForm({
+  workflowSteps,
   onOpenChange,
   onSubmit,
 }: Omit<UploadCsvDialogProps, "open">) {
@@ -51,7 +58,7 @@ function UploadCsvForm({
     setError(null);
     try {
       const text = await file.text();
-      const people = parsePeopleCsv(text);
+      const people = parsePeopleCsv(text, { steps: workflowSteps });
       await onSubmit(people);
       onOpenChange(false);
     } catch (err) {
@@ -78,7 +85,7 @@ function UploadCsvForm({
           </code>
           <p className="text-xs text-muted-foreground">
             Email is required. Name, role, and step are optional. Valid steps are{" "}
-            {STEP_ORDER.map((step) => `${step} (${STEP_LABELS[step]})`).join(
+            {workflowSteps.map((step) => `${step} (${STEP_LABELS[step]})`).join(
               ", ",
             )}
             .
@@ -86,7 +93,8 @@ function UploadCsvForm({
           <pre className="overflow-x-auto rounded bg-background p-2 text-xs text-muted-foreground">
             email,name,role,step{"\n"}
             jane@example.com,Jane Doe,Reviewer,eval{"\n"}
-            sam@example.com,Sam Patel,Ops Lead,sent_contracts
+            sam@example.com,Sam Patel,Ops Lead,
+            {workflowSteps[workflowSteps.length - 1]}
           </pre>
         </div>
 

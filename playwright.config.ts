@@ -27,6 +27,7 @@ export default defineConfig({
     env: {
       WORKFLOW_TRACKER_STORE: "file",
       WORKFLOW_TRACKER_STORE_FILE: storeFile,
+      WORKFLOW_TRACKER_E2E_AUTH_BYPASS: "1",
       PORT: String(port),
     },
   },

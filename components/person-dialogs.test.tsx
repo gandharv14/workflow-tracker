@@ -4,7 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { AddPersonDialog } from "./add-person-dialog";
 import { EditPersonDialog } from "./edit-person-dialog";
+import { CC_AGENTIC_CODING_TAIGA_PROJECT_ID } from "@/lib/projects";
+import { getProjectSteps } from "@/lib/steps";
 import { person } from "@/test/factories";
+
+const workflowSteps = getProjectSteps(CC_AGENTIC_CODING_TAIGA_PROJECT_ID);
 
 function deferred() {
   let resolve!: () => void;
@@ -24,6 +28,7 @@ describe("AddPersonDialog", () => {
       <AddPersonDialog
         open
         initialStep="background_check"
+        workflowSteps={workflowSteps}
         onOpenChange={onOpenChange}
         onSubmit={onSubmit}
       />,
@@ -65,6 +70,7 @@ describe("AddPersonDialog", () => {
       <AddPersonDialog
         open
         initialStep="eval"
+        workflowSteps={workflowSteps}
         onOpenChange={vi.fn()}
         onSubmit={onSubmit}
       />,
@@ -87,6 +93,7 @@ describe("AddPersonDialog", () => {
       <AddPersonDialog
         open
         initialStep="eval"
+        workflowSteps={workflowSteps}
         onOpenChange={vi.fn()}
         onSubmit={failingSubmit}
       />,
@@ -105,6 +112,7 @@ describe("AddPersonDialog", () => {
       <AddPersonDialog
         open
         initialStep="eval"
+        workflowSteps={workflowSteps}
         onOpenChange={onOpenChange}
         onSubmit={onSubmit}
       />,

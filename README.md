@@ -1,6 +1,8 @@
 # Workflow Tracker
 
-A kanban-style board to track people through a multi-stage workflow:
+A kanban-style board to track people through project-specific workflows.
+
+**CC-Agentic-Coding-Taiga** uses the full workflow:
 
 1. **Eval** — initial evaluation and screening
 2. **Interview** — interview round
@@ -8,7 +10,9 @@ A kanban-style board to track people through a multi-stage workflow:
 4. **Sent Contracts** — contract sent, awaiting signature
 5. **In Production** — live and working
 
-Email is the unique identifier, name is optional. Drag cards between columns, select multiple cards for bulk moves, and search across the whole board.
+**Transcript Consensus** uses a shorter workflow: Eval, Background Check, and In Production.
+
+Email is the unique identifier within each project, name is optional. Drag cards between columns, select multiple cards for bulk moves, and search across the active project board.
 
 ## Stack
 
@@ -48,10 +52,11 @@ vercel --prod
 - **Drag & drop** to move a single person between stages (powered by `@dnd-kit`).
 - **Card menu** (kebab icon on hover) for Edit / Delete / Move-to ▸ as a keyboard-and-mobile-friendly alternative to DnD.
 - **Bulk operations** — check off multiple cards to reveal the floating bottom bar with "Move to ▸" and "Delete".
-- **Sent Contracts email** — sends the SME engagement terms to everyone currently in Sent Contracts, with one personalized email per person.
+- **Project switcher** — use the left sidebar to switch between CC-Agentic-Coding-Taiga and Transcript Consensus.
+- **Sent Contracts email** — sends the SME engagement terms to everyone currently in Sent Contracts for projects that include that stage, with one personalized email per person.
 - **Global search** — filters cards by email or name (case-insensitive). Column headers show `visible / total` while a query is active.
 - **Optimistic updates** with rollback + toast on failure.
-- **Unique emails** — duplicates rejected with `409 Conflict`.
+- **Unique emails per project** — duplicates rejected with `409 Conflict` within a project.
 - **Vercel Blob persistence** — a single `people.json` blob written with ETag-based conditional `put` (max 3 retries on contention) plus an in-process mutex, so concurrent requests within and across runtime instances cannot lose updates.
 - **Email delivery** — uses the Resend HTTP API with server-only `RESEND_API_KEY` and `EMAIL_FROM` environment variables.
 
@@ -59,14 +64,17 @@ vercel --prod
 
 | Method | Path                  | Body                                                 | Description                          |
 | ------ | --------------------- | ---------------------------------------------------- | ------------------------------------ |
-| GET    | `/api/people`         | —                                                    | List all people                      |
-| POST   | `/api/people`         | `{ email, name?, step? }`                            | Create a person (defaults to `eval`) |
-| PATCH  | `/api/people/[id]`    | `{ email?, name?, step? }`                           | Update a person                      |
-| DELETE | `/api/people/[id]`    | —                                                    | Delete a person                      |
-| POST   | `/api/people/bulk`    | `{ action: "move" \| "delete", ids[], step? }`       | Bulk move or delete                  |
-| POST   | `/api/people/sent-contracts-email` | —                                      | Email everyone in Sent Contracts     |
+| GET    | `/api/people?project=...` | —                                                | List people for a project            |
+| POST   | `/api/people?project=...` | `{ email, name?, step? }`                        | Create a person (defaults to `eval`) |
+| PATCH  | `/api/people/[id]?project=...` | `{ email?, name?, step? }`                  | Update a person in a project         |
+| DELETE | `/api/people/[id]?project=...` | —                                           | Delete a person in a project         |
+| POST   | `/api/people/bulk?project=...` | `{ action: "move" \| "delete", ids[], step? }` | Bulk move or delete                  |
+| POST   | `/api/people/import?project=...` | `{ people: [...] }`                       | Import CSV-parsed people             |
+| POST   | `/api/people/sent-contracts-email?project=...` | —                         | Email everyone in Sent Contracts     |
 
-Steps: `eval`, `interview`, `background_check`, `sent_contracts`, `in_production`.
+Project ids: `cc-agentic-coding-taiga`, `transcript-consensus`.
+
+Steps: `eval`, `interview`, `background_check`, `sent_contracts`, `in_production`. Transcript Consensus accepts only `eval`, `background_check`, and `in_production`.
 
 ## File layout
 
@@ -91,7 +99,8 @@ lib/
   store.ts                         # Vercel Blob read/write with mutex + ETag retry
   email.ts                         # Resend email transport
   sent-contracts-email.ts          # SME terms email template
-  steps.ts                         # STEP_ORDER, labels, colors
+  projects.ts                      # project ids, names, workflows, feature flags
+  steps.ts                         # step order, labels, colors, project-aware helpers
   schemas.ts                       # zod request schemas
   api.ts                           # client fetch helpers
   types.ts

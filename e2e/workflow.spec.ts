@@ -11,6 +11,7 @@ async function resetStore() {
 
 async function readStorePeople() {
   return JSON.parse(await readFile(storeFile, "utf8")) as Array<{
+    projectId: string;
     email: string;
     name?: string;
     step: string;
@@ -30,7 +31,7 @@ async function addPerson(
   input: { email: string; name?: string; step?: string },
 ) {
   await page.getByRole("button", { name: /Add person/ }).first().click();
-  await page.getByLabel("Email").fill(input.email);
+  await page.getByRole("textbox", { name: "Email" }).fill(input.email);
   if (input.name) await page.getByLabel(/Name/).fill(input.name);
   if (input.step) await page.getByLabel("Workflow step").selectOption(input.step);
   await page.getByRole("button", { name: "Add person" }).click();
@@ -77,7 +78,7 @@ test("tracks people through the workflow", async ({ page }) => {
 
   await openCardMenu(page, "alice@example.com");
   await page.getByRole("menuitem", { name: "Edit" }).click();
-  await page.getByLabel("Email").fill("alicia@example.com");
+  await page.getByRole("textbox", { name: "Email" }).fill("alicia@example.com");
   await page.getByLabel(/Name/).fill("Alicia Candidate");
   await page.getByRole("button", { name: "Save changes" }).click();
   await expect(cardEmail(page, "alicia@example.com")).toBeVisible();
@@ -112,6 +113,66 @@ test("tracks people through the workflow", async ({ page }) => {
   await page.reload();
   await expect(cardEmail(page, "alicia@example.com")).toBeVisible();
   await expect(cardEmail(page, "bob@example.com")).toBeHidden();
+});
+
+test("switches between project workflows and keeps people scoped", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByText("CC-Agentic-Coding-Taiga").first()).toBeVisible();
+  await expect(page.getByText("0 people across 5 stages")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Interview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Sent Contracts" })).toBeVisible();
+
+  await addPerson(page, {
+    email: "shared@example.com",
+    name: "CC Person",
+  });
+  await expect(cardEmail(page, "shared@example.com")).toBeVisible();
+
+  await page.getByRole("link", { name: /Transcript Consensus/ }).click();
+  await expect(page).toHaveURL(/project=transcript-consensus/);
+  await expect(page.getByText("0 people across 3 stages")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Interview" })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Sent Contracts" }),
+  ).toHaveCount(0);
+
+  await page.getByRole("button", { name: /Add person/ }).first().click();
+  await expect(
+    page.getByLabel("Workflow step").locator("option", { hasText: "Sent Contracts" }),
+  ).toHaveCount(0);
+  await page.getByRole("textbox", { name: "Email" }).fill("shared@example.com");
+  await page.getByLabel(/Name/).fill("Transcript Person");
+  await page.getByLabel("Workflow step").selectOption("in_production");
+  await page.getByRole("button", { name: "Add person" }).click();
+  await expect(cardEmail(page, "shared@example.com")).toBeVisible();
+  await expect(page.getByText("Transcript Person")).toBeVisible();
+
+  await page.reload();
+  await expect(page).toHaveURL(/project=transcript-consensus/);
+  await expect(page.getByText("Transcript Person")).toBeVisible();
+
+  await page.getByRole("link", { name: /CC-Agentic-Coding-Taiga/ }).click();
+  await expect(page).toHaveURL(/project=cc-agentic-coding-taiga/);
+  await expect(page.getByText("CC Person")).toBeVisible();
+  await expect(page.getByText("Transcript Person")).toBeHidden();
+
+  const persisted = await readStorePeople();
+  expect(persisted).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        projectId: "cc-agentic-coding-taiga",
+        email: "shared@example.com",
+        name: "CC Person",
+      }),
+      expect.objectContaining({
+        projectId: "transcript-consensus",
+        email: "shared@example.com",
+        name: "Transcript Person",
+        step: "in_production",
+      }),
+    ]),
+  );
 });
 
 test("recreates a deleted person, moves the new record, and persists after reload", async ({

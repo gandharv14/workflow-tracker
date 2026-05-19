@@ -15,6 +15,10 @@ export type CsvPersonInput = {
 
 const CSV_HEADERS = ["email", "name", "role", "step"] as const;
 
+type ParsePeopleCsvOptions = {
+  steps?: readonly Step[];
+};
+
 function normalizeHeader(value: string): string {
   return value.replace(/^\uFEFF/, "").trim().toLowerCase();
 }
@@ -80,7 +84,11 @@ function csvValue(value: string | undefined): string {
   return `"${safeValue.replaceAll('"', '""')}"`;
 }
 
-export function parsePeopleCsv(csv: string): CsvPersonInput[] {
+export function parsePeopleCsv(
+  csv: string,
+  options: ParsePeopleCsvOptions = {},
+): CsvPersonInput[] {
+  const validSteps = options.steps ?? STEP_ORDER;
   const rows = parseCsvRows(csv);
   if (rows.length === 0) throw new Error("CSV is empty");
 
@@ -114,13 +122,16 @@ export function parsePeopleCsv(csv: string): CsvPersonInput[] {
     seenEmails.add(normalizedEmail);
 
     const rawStep = trimOptional(stepIndex >= 0 ? row[stepIndex] : undefined);
-    const parsedStep = rawStep ? normalizeStep(rawStep) : undefined;
-    if (rawStep && parsedStep === null) {
-      throw new Error(
-        `Row ${rowNumber}: step must be one of ${STEP_ORDER.join(", ")}`,
-      );
+    let step: Step | undefined;
+    if (rawStep) {
+      const parsedStep = normalizeStep(rawStep);
+      if (parsedStep === null || !validSteps.includes(parsedStep)) {
+        throw new Error(
+          `Row ${rowNumber}: step must be one of ${validSteps.join(", ")}`,
+        );
+      }
+      step = parsedStep;
     }
-    const step = parsedStep ?? undefined;
 
     return {
       email,
