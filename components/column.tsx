@@ -56,6 +56,7 @@ export function Column({
   const allVisibleSelected =
     hasVisiblePeople && visibleIds.every((id) => selectedIds.has(id));
   const selectionAction = allVisibleSelected ? "Unselect All" : "Select All";
+  const selectionLabel = allVisibleSelected ? "Unselect" : "Select all";
 
   return (
     <div
@@ -65,39 +66,47 @@ export function Column({
         color.ring,
       )}
     >
-      <div className="flex items-start justify-between gap-2 px-3 pt-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={cn("size-2 rounded-full", color.dot)} />
-            <h2 className={cn("text-sm font-semibold tracking-tight", color.text)}>
-              {STEP_LABELS[step]}
-            </h2>
-            <span className="rounded-full bg-background/80 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
-              {hasActiveSearch
-                ? `${people.length}/${totalCount}`
-                : totalCount}
-            </span>
+      <div className="px-3 pt-3">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-start gap-2">
+              <span className={cn("mt-1.5 size-2 shrink-0 rounded-full", color.dot)} />
+              <h2
+                className={cn(
+                  "line-clamp-2 text-sm font-semibold leading-snug tracking-tight",
+                  color.text,
+                )}
+              >
+                {STEP_LABELS[step]}
+              </h2>
+            </div>
+            <p className="mt-1 line-clamp-2 text-[11px] leading-snug text-muted-foreground">
+              {STEP_DESCRIPTIONS[step]}
+            </p>
           </div>
-          <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">
-            {STEP_DESCRIPTIONS[step]}
-          </p>
+          <span className="shrink-0 rounded-full bg-background/80 px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-inset ring-foreground/5">
+            {hasActiveSearch
+              ? `${people.length}/${totalCount}`
+              : totalCount}
+          </span>
         </div>
-        <div className="flex shrink-0 items-center gap-1">
+
+        <div className="mt-3 flex flex-wrap items-center gap-1 rounded-lg bg-background/55 p-1 ring-1 ring-inset ring-foreground/5">
           <Button
             variant="ghost"
             size="xs"
-            className="text-muted-foreground hover:text-foreground"
+            className="min-w-20 flex-1 justify-center text-muted-foreground hover:text-foreground"
             onClick={() => onToggleSelectAll(visibleIds, !allVisibleSelected)}
             disabled={!hasVisiblePeople}
             aria-label={`${selectionAction} in ${STEP_LABELS[step]}`}
           >
-            {selectionAction}
+            {selectionLabel}
           </Button>
           {step === "sent_contracts" && onEmailSentContracts ? (
             <Button
               variant="ghost"
               size="xs"
-              className="text-muted-foreground hover:text-foreground"
+              className="min-w-16 flex-1 justify-center text-muted-foreground hover:text-foreground"
               onClick={onEmailSentContracts}
               disabled={totalCount === 0 || isEmailingSentContracts}
               aria-label="Email Sent Contracts"
@@ -108,7 +117,7 @@ export function Column({
           ) : null}
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-xs"
             className="text-muted-foreground hover:text-foreground"
             onClick={() => onDownload(step)}
             disabled={totalCount === 0}
@@ -118,7 +127,7 @@ export function Column({
           </Button>
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="icon-xs"
             className="text-muted-foreground hover:text-foreground"
             onClick={() => onAddHere(step)}
             aria-label={`Add to ${STEP_LABELS[step]}`}
