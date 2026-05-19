@@ -10,7 +10,18 @@ import {
 import { nanoid } from "nanoid";
 import { basename, join } from "node:path";
 
-import { normalizeStep, type Step } from "./steps";
+import {
+  DEFAULT_PROJECT_ID,
+  getProject,
+  normalizeProjectId,
+  type ProjectId,
+} from "./projects";
+import {
+  getDefaultProjectStep,
+  normalizeProjectStep,
+  normalizeStep,
+  type Step,
+} from "./steps";
 import type { Person } from "./types";
 
 const BLOB_KEY = "people.json";
@@ -22,6 +33,13 @@ export class StoreDataError extends Error {
   constructor(message: string) {
     super(message);
     this.name = "StoreDataError";
+  }
+}
+
+export class StoreInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StoreInputError";
   }
 }
 
@@ -172,6 +190,19 @@ function normalizeOptionalText(value: string | undefined | null): string | undef
     : undefined;
 }
 
+function normalizeInputStep(
+  projectId: ProjectId,
+  value: Step | undefined,
+  fallback?: Step,
+): Step {
+  if (value === undefined) return fallback ?? getDefaultProjectStep(projectId);
+  const step = normalizeProjectStep(projectId, value);
+  if (step) return step;
+  throw new StoreInputError(
+    `Step is not valid for ${getProject(projectId).name}`,
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -190,6 +221,7 @@ function normalizePersistedPerson(
   }
 
   const id = value.id;
+  const projectId = normalizeProjectId(value.projectId) ?? DEFAULT_PROJECT_ID;
   const emailValue = value.email;
   const createdAt = value.createdAt;
   const updatedAt = value.updatedAt;
@@ -213,13 +245,17 @@ function normalizePersistedPerson(
       `Stored workflow person at index ${index} has an invalid email`,
     );
   }
-  if (seenEmails.has(email)) {
-    throw new StoreDataError(`Stored workflow data has duplicate email ${email}`);
+  const emailKey = `${projectId}:${email}`;
+  if (seenEmails.has(emailKey)) {
+    throw new StoreDataError(
+      `Stored workflow data has duplicate email ${email}`,
+    );
   }
-  seenEmails.add(email);
+  seenEmails.add(emailKey);
 
   return {
     id: id.trim(),
+    projectId,
     email,
     name: normalizeOptionalText(
       typeof value.name === "string" || value.name === null
@@ -231,7 +267,10 @@ function normalizePersistedPerson(
         ? value.role
         : undefined,
     ),
-    step: normalizeStep(value.step) ?? "eval",
+    step:
+      normalizeProjectStep(projectId, value.step) ??
+      (projectId === DEFAULT_PROJECT_ID ? normalizeStep(value.step) : null) ??
+      getDefaultProjectStep(projectId),
     createdAt,
     updatedAt,
   };
@@ -249,8 +288,12 @@ function isRetryableWriteConflict(err: unknown): boolean {
   return err instanceof Error && /precondition|already exists|conflict/i.test(err.message);
 }
 
-export function listPeople(): Promise<Person[]> {
-  return withLock(async () => (await readAll()).people);
+export function listPeople(
+  projectId: ProjectId = DEFAULT_PROJECT_ID,
+): Promise<Person[]> {
+  return withLock(async () =>
+    (await readAll()).people.filter((person) => person.projectId === projectId),
+  );
 }
 
 type AddPersonResult =
@@ -262,20 +305,21 @@ export function addPerson(input: {
   name?: string;
   role?: string;
   step?: Step;
-}): Promise<AddPersonResult> {
+}, projectId: ProjectId = DEFAULT_PROJECT_ID): Promise<AddPersonResult> {
   return withLock(() =>
     mutate<AddPersonResult>(async (people) => {
       const email = normalizeEmail(input.email);
-      if (people.some((p) => p.email === email)) {
+      if (people.some((p) => p.projectId === projectId && p.email === email)) {
         return {
           next: null,
           result: { ok: false, reason: "duplicate_email" },
         };
       }
       const now = new Date().toISOString();
-      const step = normalizeStep(input.step) ?? "eval";
+      const step = normalizeInputStep(projectId, input.step);
       const person: Person = {
         id: nanoid(10),
+        projectId,
         email,
         name: normalizeOptionalText(input.name),
         role: normalizeOptionalText(input.role),
@@ -298,10 +342,13 @@ type UpdatePersonResult =
 export function updatePerson(
   id: string,
   patch: { email?: string; name?: string | null; role?: string | null; step?: Step },
+  projectId: ProjectId = DEFAULT_PROJECT_ID,
 ): Promise<UpdatePersonResult> {
   return withLock(() =>
     mutate<UpdatePersonResult>(async (people) => {
-      const idx = people.findIndex((p) => p.id === id);
+      const idx = people.findIndex(
+        (p) => p.projectId === projectId && p.id === id,
+      );
       if (idx === -1) {
         return {
           next: null,
@@ -315,7 +362,10 @@ export function updatePerson(
       if (
         patch.email !== undefined &&
         nextEmail !== current.email &&
-        people.some((p) => p.email === nextEmail && p.id !== id)
+        people.some(
+          (p) =>
+            p.projectId === projectId && p.email === nextEmail && p.id !== id,
+        )
       ) {
         return {
           next: null,
@@ -344,7 +394,7 @@ export function updatePerson(
         role: nextRole,
         step:
           patch.step !== undefined
-            ? normalizeStep(patch.step) ?? current.step
+            ? normalizeInputStep(projectId, patch.step, current.step)
             : current.step,
         updatedAt: new Date().toISOString(),
       };
@@ -358,10 +408,15 @@ export function updatePerson(
   );
 }
 
-export function deletePerson(id: string): Promise<{ ok: boolean }> {
+export function deletePerson(
+  id: string,
+  projectId: ProjectId = DEFAULT_PROJECT_ID,
+): Promise<{ ok: boolean }> {
   return withLock(() =>
     mutate<{ ok: boolean }>(async (people) => {
-      const next = people.filter((p) => p.id !== id);
+      const next = people.filter(
+        (p) => !(p.projectId === projectId && p.id === id),
+      );
       if (next.length === people.length) {
         return { next: null, result: { ok: false } };
       }
@@ -373,17 +428,23 @@ export function deletePerson(id: string): Promise<{ ok: boolean }> {
 export function bulkMove(
   ids: string[],
   step: Step,
+  projectId: ProjectId = DEFAULT_PROJECT_ID,
 ): Promise<{ updated: Person[] }> {
   return withLock(() =>
     mutate(async (people) => {
-      const targetStep = normalizeStep(step) ?? "eval";
+      const targetStep = normalizeInputStep(projectId, step);
       const idSet = new Set(ids);
       const now = new Date().toISOString();
       const updated: Person[] = [];
       const nextPeople = people.slice();
       let mutated = false;
       for (let i = 0; i < nextPeople.length; i += 1) {
-        if (!idSet.has(nextPeople[i].id)) continue;
+        if (
+          nextPeople[i].projectId !== projectId ||
+          !idSet.has(nextPeople[i].id)
+        ) {
+          continue;
+        }
         if (nextPeople[i].step !== targetStep) {
           nextPeople[i] = { ...nextPeople[i], step: targetStep, updatedAt: now };
           mutated = true;
@@ -398,11 +459,16 @@ export function bulkMove(
   );
 }
 
-export function bulkDelete(ids: string[]): Promise<{ deleted: number }> {
+export function bulkDelete(
+  ids: string[],
+  projectId: ProjectId = DEFAULT_PROJECT_ID,
+): Promise<{ deleted: number }> {
   return withLock(() =>
     mutate(async (people) => {
       const idSet = new Set(ids);
-      const next = people.filter((p) => !idSet.has(p.id));
+      const next = people.filter(
+        (p) => p.projectId !== projectId || !idSet.has(p.id),
+      );
       const deleted = people.length - next.length;
       if (deleted === 0) {
         return { next: null, result: { deleted: 0 } };
@@ -426,13 +492,20 @@ type ImportPeopleInput = {
 
 export function importPeople(
   inputs: ImportPeopleInput[],
+  projectId: ProjectId = DEFAULT_PROJECT_ID,
 ): Promise<{ created: number; updated: number; people: Person[] }> {
   return withLock(() =>
     mutate(async (people) => {
       const now = new Date().toISOString();
       const nextPeople = people.slice();
       const indexByEmail = new Map(
-        nextPeople.map((person, index) => [normalizeEmail(person.email), index]),
+        nextPeople
+          .map((person, index) =>
+            person.projectId === projectId
+              ? ([normalizeEmail(person.email), index] as const)
+              : null,
+          )
+          .filter((entry): entry is readonly [string, number] => entry !== null),
       );
       const changedPeople = new Map<string, Person>();
       let created = 0;
@@ -454,10 +527,11 @@ export function importPeople(
         if (idx === undefined) {
           const person: Person = {
             id: nanoid(10),
+            projectId,
             email,
             name: normalizeOptionalText(input.name),
             role: normalizeOptionalText(input.role),
-            step: normalizeStep(input.step) ?? "eval",
+            step: normalizeInputStep(projectId, input.step),
             createdAt: now,
             updatedAt: now,
           };
@@ -477,7 +551,7 @@ export function importPeople(
           : current.role;
         const nextStep =
           fields.step && input.step !== undefined
-            ? normalizeStep(input.step) ?? current.step
+            ? normalizeInputStep(projectId, input.step, current.step)
             : current.step;
         if (
           nextName === current.name &&

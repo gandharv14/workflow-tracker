@@ -9,12 +9,30 @@ import {
   OAUTH_NONCE_COOKIE,
   OAUTH_STATE_COOKIE,
   authCookieOptions,
+  isAuthorizedEmail,
   sanitizeRedirectPath,
 } from "@/lib/auth";
 
 const OAUTH_COOKIE_MAX_AGE = 10 * 60;
 
 export async function GET(request: NextRequest) {
+  const nextPath = sanitizeRedirectPath(request.nextUrl.searchParams.get("next"));
+  const email = request.nextUrl.searchParams.get("email")?.trim().toLowerCase();
+
+  if (!email) {
+    const params = new URLSearchParams({
+      error: "email-required",
+      next: nextPath,
+    });
+    return NextResponse.redirect(new URL(`/sign-in?${params}`, request.url));
+  }
+
+  if (!isAuthorizedEmail(email)) {
+    return NextResponse.redirect(
+      new URL("/auth/error?reason=access-denied", request.url),
+    );
+  }
+
   const clientId = process.env.NEXT_PUBLIC_VERCEL_APP_CLIENT_ID;
   if (!clientId) {
     return NextResponse.redirect(
@@ -37,7 +55,7 @@ export async function GET(request: NextRequest) {
   cookieStore.set(OAUTH_CODE_VERIFIER_COOKIE, codeVerifier, cookieOptions);
   cookieStore.set(
     OAUTH_NEXT_COOKIE,
-    sanitizeRedirectPath(request.nextUrl.searchParams.get("next")),
+    nextPath,
     cookieOptions,
   );
 

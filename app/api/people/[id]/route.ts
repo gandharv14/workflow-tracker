@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { requireApiAuth } from "@/lib/auth";
 import { deletePerson, updatePerson } from "@/lib/store";
-import { updatePersonSchema } from "@/lib/schemas";
+import { updatePersonSchemaForProject } from "@/lib/schemas";
+import { projectIdOrResponse } from "@/lib/project-api";
 import { routeErrorResponse } from "@/lib/route-errors";
 import type { Step } from "@/lib/steps";
 
@@ -13,6 +14,8 @@ type RouteParams = { params: Promise<{ id: string }> };
 export async function PATCH(request: Request, { params }: RouteParams) {
   const authResponse = await requireApiAuth();
   if (authResponse) return authResponse;
+  const { projectId, response } = projectIdOrResponse(request);
+  if (response) return response;
 
   const { id } = await params;
   let payload: unknown;
@@ -22,7 +25,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const parsed = updatePersonSchema.safeParse(payload);
+  const parsed = updatePersonSchemaForProject(projectId).safeParse(payload);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "Invalid input" },
@@ -37,7 +40,7 @@ export async function PATCH(request: Request, { params }: RouteParams) {
       name: parsed.data.name as string | null | undefined,
       role: parsed.data.role as string | null | undefined,
       step: parsed.data.step as Step | undefined,
-    });
+    }, projectId);
   } catch (err) {
     const response = routeErrorResponse(err);
     if (response) return response;
@@ -57,14 +60,16 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   return NextResponse.json(result.person);
 }
 
-export async function DELETE(_request: Request, { params }: RouteParams) {
+export async function DELETE(request: Request, { params }: RouteParams) {
   const authResponse = await requireApiAuth();
   if (authResponse) return authResponse;
+  const { projectId, response } = projectIdOrResponse(request);
+  if (response) return response;
 
   const { id } = await params;
   let result: Awaited<ReturnType<typeof deletePerson>>;
   try {
-    result = await deletePerson(id);
+    result = await deletePerson(id, projectId);
   } catch (err) {
     const response = routeErrorResponse(err);
     if (response) return response;

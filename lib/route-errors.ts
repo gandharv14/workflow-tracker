@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 
-import { StoreDataError, StoreWriteConflictError } from "./store";
+import { StoreDataError, StoreInputError, StoreWriteConflictError } from "./store";
 
 export function routeErrorResponse(err: unknown): NextResponse | null {
+  if (err instanceof StoreInputError) {
+    return NextResponse.json({ error: err.message }, { status: 400 });
+  }
+
   if (err instanceof StoreWriteConflictError) {
     return NextResponse.json(
       { error: "Workflow data changed while saving. Please retry." },

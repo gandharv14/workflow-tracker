@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { requireApiAuth } from "@/lib/auth";
 import { bulkDelete, bulkMove } from "@/lib/store";
-import { bulkSchema } from "@/lib/schemas";
+import { bulkSchemaForProject } from "@/lib/schemas";
+import { projectIdOrResponse } from "@/lib/project-api";
 import { routeErrorResponse } from "@/lib/route-errors";
 import type { Step } from "@/lib/steps";
 
@@ -11,6 +12,8 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const authResponse = await requireApiAuth();
   if (authResponse) return authResponse;
+  const { projectId, response } = projectIdOrResponse(request);
+  if (response) return response;
 
   let payload: unknown;
   try {
@@ -19,7 +22,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const parsed = bulkSchema.safeParse(payload);
+  const parsed = bulkSchemaForProject(projectId).safeParse(payload);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "Invalid input" },
@@ -32,6 +35,7 @@ export async function POST(request: Request) {
       const { updated } = await bulkMove(
         parsed.data.ids,
         parsed.data.step as Step,
+        projectId,
       );
       return NextResponse.json({ updated });
     } catch (err) {
@@ -42,7 +46,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const { deleted } = await bulkDelete(parsed.data.ids);
+    const { deleted } = await bulkDelete(parsed.data.ids, projectId);
     return NextResponse.json({ deleted });
   } catch (err) {
     const response = routeErrorResponse(err);

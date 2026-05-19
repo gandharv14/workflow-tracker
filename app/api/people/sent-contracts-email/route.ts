@@ -7,6 +7,8 @@ import {
   sendEmail,
 } from "@/lib/email";
 import { routeErrorResponse } from "@/lib/route-errors";
+import { getProject } from "@/lib/projects";
+import { projectIdOrResponse } from "@/lib/project-api";
 import {
   SENT_CONTRACTS_EMAIL_SUBJECT,
   sentContractsEmailText,
@@ -15,13 +17,22 @@ import { listPeople } from "@/lib/store";
 
 export const dynamic = "force-dynamic";
 
-export async function POST() {
+export async function POST(request: Request) {
   const authResponse = await requireApiAuth();
   if (authResponse) return authResponse;
+  const { projectId, response } = projectIdOrResponse(request);
+  if (response) return response;
+  const project = getProject(projectId);
+  if (!project.canEmailSentContracts) {
+    return NextResponse.json(
+      { error: "Sent Contracts emails are not available for this project" },
+      { status: 400 },
+    );
+  }
 
   let sentContractsPeople: Awaited<ReturnType<typeof listPeople>>;
   try {
-    const people = await listPeople();
+    const people = await listPeople(projectId);
     sentContractsPeople = people.filter((person) => person.step === "sent_contracts");
   } catch (err) {
     const response = routeErrorResponse(err);

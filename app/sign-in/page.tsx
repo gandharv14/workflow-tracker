@@ -4,12 +4,16 @@ import { buttonVariants } from "@/components/ui/button";
 import { getAuthUser, sanitizeRedirectPath } from "@/lib/auth";
 
 type SignInPageProps = {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ error?: string; next?: string }>;
+};
+
+const ERROR_MESSAGES: Record<string, string> = {
+  "email-required": "Enter your authorized Labelbox email to continue.",
 };
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const user = await getAuthUser();
-  const { next } = await searchParams;
+  const { error, next } = await searchParams;
   const nextPath = sanitizeRedirectPath(next);
 
   if (user) {
@@ -28,12 +32,31 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         <p className="mt-3 text-sm text-muted-foreground">
           Access is limited to authorized Labelbox users.
         </p>
-        <a
-          className={buttonVariants({ className: "mt-6 w-full" })}
-          href={`/api/auth/authorize?next=${encodeURIComponent(nextPath)}`}
-        >
-          Sign in with Vercel
-        </a>
+        {error ? (
+          <p className="mt-4 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {ERROR_MESSAGES[error] ?? "Unable to start sign-in."}
+          </p>
+        ) : null}
+        <form action="/api/auth/authorize" className="mt-6 space-y-4 text-left">
+          <input type="hidden" name="next" value={nextPath} />
+          <div className="space-y-2">
+            <label className="text-sm font-medium" htmlFor="email">
+              Labelbox email
+            </label>
+            <input
+              autoComplete="email"
+              className="h-9 w-full rounded-lg border border-input bg-transparent px-3 py-1 text-sm outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+              id="email"
+              name="email"
+              placeholder="you@labelbox.com"
+              required
+              type="email"
+            />
+          </div>
+          <button className={buttonVariants({ className: "w-full" })} type="submit">
+            Continue with Vercel
+          </button>
+        </form>
       </section>
     </main>
   );

@@ -1,3 +1,5 @@
+import { getProject, type ProjectId } from "./projects";
+
 export const STEP_ORDER = [
   "eval",
   "interview",
@@ -86,4 +88,27 @@ export function normalizeStep(value: unknown): Step | null {
     }
   }
   return null;
+}
+
+export function getProjectSteps(projectId: ProjectId): readonly Step[] {
+  return getProject(projectId).steps;
+}
+
+export function getDefaultProjectStep(projectId: ProjectId): Step {
+  return getProjectSteps(projectId)[0] ?? "eval";
+}
+
+export function isProjectStep(
+  projectId: ProjectId,
+  value: unknown,
+): value is Step {
+  return isStep(value) && getProjectSteps(projectId).includes(value);
+}
+
+export function normalizeProjectStep(
+  projectId: ProjectId,
+  value: unknown,
+): Step | null {
+  const step = normalizeStep(value);
+  return step && isProjectStep(projectId, step) ? step : null;
 }

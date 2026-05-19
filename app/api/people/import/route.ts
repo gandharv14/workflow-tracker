@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 
 import { requireApiAuth } from "@/lib/auth";
 import { importPeople } from "@/lib/store";
-import { importPeopleSchema } from "@/lib/schemas";
+import { importPeopleSchemaForProject } from "@/lib/schemas";
+import { projectIdOrResponse } from "@/lib/project-api";
 import { routeErrorResponse } from "@/lib/route-errors";
 import type { Step } from "@/lib/steps";
 
@@ -31,6 +32,8 @@ function rawPeopleFromPayload(payload: unknown): unknown[] {
 export async function POST(request: Request) {
   const authResponse = await requireApiAuth();
   if (authResponse) return authResponse;
+  const { projectId, response } = projectIdOrResponse(request);
+  if (response) return response;
 
   let payload: unknown;
   try {
@@ -39,7 +42,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const parsed = importPeopleSchema.safeParse(payload);
+  const parsed = importPeopleSchemaForProject(projectId).safeParse(payload);
   if (!parsed.success) {
     return NextResponse.json(
       { error: parsed.error.issues[0]?.message ?? "Invalid input" },
@@ -62,6 +65,7 @@ export async function POST(request: Request) {
           step: person.fields?.step ?? hasOwnField(rawPeople[index], "step"),
         },
       })),
+      projectId,
     );
   } catch (err) {
     const response = routeErrorResponse(err);
