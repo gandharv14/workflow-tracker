@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { requireApiAuth } from "@/lib/auth";
 import { importPeople } from "@/lib/store";
 import { importPeopleSchemaForProject } from "@/lib/schemas";
 import { projectIdOrResponse } from "@/lib/project-api";
@@ -30,8 +29,6 @@ function rawPeopleFromPayload(payload: unknown): unknown[] {
 }
 
 export async function POST(request: Request) {
-  const authResponse = await requireApiAuth();
-  if (authResponse) return authResponse;
   const { projectId, response } = projectIdOrResponse(request);
   if (response) return response;
 

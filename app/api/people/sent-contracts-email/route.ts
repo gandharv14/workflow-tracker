@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { requireApiAuth } from "@/lib/auth";
 import {
   EmailConfigurationError,
   EmailDeliveryError,
@@ -18,8 +17,6 @@ import { listPeople } from "@/lib/store";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const authResponse = await requireApiAuth();
-  if (authResponse) return authResponse;
   const { projectId, response } = projectIdOrResponse(request);
   if (response) return response;
   const project = getProject(projectId);

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { requireApiAuth } from "@/lib/auth";
 import { deletePerson, updatePerson } from "@/lib/store";
 import { updatePersonSchemaForProject } from "@/lib/schemas";
 import { projectIdOrResponse } from "@/lib/project-api";
@@ -12,8 +11,6 @@ export const dynamic = "force-dynamic";
 type RouteParams = { params: Promise<{ id: string }> };
 
 export async function PATCH(request: Request, { params }: RouteParams) {
-  const authResponse = await requireApiAuth();
-  if (authResponse) return authResponse;
   const { projectId, response } = projectIdOrResponse(request);
   if (response) return response;
 
@@ -61,8 +58,6 @@ export async function PATCH(request: Request, { params }: RouteParams) {
 }
 
 export async function DELETE(request: Request, { params }: RouteParams) {
-  const authResponse = await requireApiAuth();
-  if (authResponse) return authResponse;
   const { projectId, response } = projectIdOrResponse(request);
   if (response) return response;
 

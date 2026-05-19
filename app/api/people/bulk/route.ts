@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-import { requireApiAuth } from "@/lib/auth";
 import { bulkDelete, bulkMove } from "@/lib/store";
 import { bulkSchemaForProject } from "@/lib/schemas";
 import { projectIdOrResponse } from "@/lib/project-api";
@@ -10,8 +9,6 @@ import type { Step } from "@/lib/steps";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  const authResponse = await requireApiAuth();
-  if (authResponse) return authResponse;
   const { projectId, response } = projectIdOrResponse(request);
   if (response) return response;
 
