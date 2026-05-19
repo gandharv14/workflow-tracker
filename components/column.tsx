@@ -27,6 +27,7 @@ type ColumnProps = {
   onDelete: (id: string) => void;
   onAddHere: (step: Step) => void;
   onDownload: (step: Step) => void;
+  onSelectAll: (ids: string[]) => void;
   onEmailSentContracts?: () => void;
   isEmailingSentContracts?: boolean;
 };
@@ -44,11 +45,14 @@ export function Column({
   onDelete,
   onAddHere,
   onDownload,
+  onSelectAll,
   onEmailSentContracts,
   isEmailingSentContracts = false,
 }: ColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: `col-${step}` });
   const color = STEP_COLORS[step];
+  const visibleIds = people.map((person) => person.id);
+  const hasUnselectedPeople = visibleIds.some((id) => !selectedIds.has(id));
 
   return (
     <div
@@ -76,6 +80,16 @@ export function Column({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-1">
+          <Button
+            variant="ghost"
+            size="xs"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => onSelectAll(visibleIds)}
+            disabled={!hasUnselectedPeople}
+            aria-label={`Select all in ${STEP_LABELS[step]}`}
+          >
+            Select All
+          </Button>
           {step === "sent_contracts" && onEmailSentContracts ? (
             <Button
               variant="ghost"

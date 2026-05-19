@@ -76,6 +76,7 @@ describe("Column", () => {
     const user = userEvent.setup();
     const onAddHere = vi.fn();
     const onDownload = vi.fn();
+    const onSelectAll = vi.fn();
 
     const { rerender } = render(
       <Column
@@ -91,6 +92,7 @@ describe("Column", () => {
         onDelete={vi.fn()}
         onAddHere={onAddHere}
         onDownload={onDownload}
+        onSelectAll={onSelectAll}
       />,
     );
 
@@ -101,6 +103,7 @@ describe("Column", () => {
     expect(onAddHere).toHaveBeenCalledWith("eval");
     await user.click(screen.getByLabelText("Download Eval CSV"));
     expect(onDownload).toHaveBeenCalledWith("eval");
+    expect(screen.getByRole("button", { name: "Select all in Eval" })).toBeDisabled();
 
     rerender(
       <Column
@@ -116,6 +119,7 @@ describe("Column", () => {
         onDelete={vi.fn()}
         onAddHere={vi.fn()}
         onDownload={vi.fn()}
+        onSelectAll={vi.fn()}
       />,
     );
     expect(screen.getByText("No matches in this column")).toBeInTheDocument();
@@ -134,9 +138,39 @@ describe("Column", () => {
         onDelete={vi.fn()}
         onAddHere={vi.fn()}
         onDownload={vi.fn()}
+        onSelectAll={vi.fn()}
       />,
     );
     expect(screen.getByText("Drop someone here or click + to add")).toBeInTheDocument();
+  });
+
+  it("selects every visible person in the column", async () => {
+    const user = userEvent.setup();
+    const onSelectAll = vi.fn();
+
+    render(
+      <Column
+        step="eval"
+        workflowSteps={workflowSteps}
+        people={[
+          person({ id: "p1", email: "p1@example.com" }),
+          person({ id: "p2", email: "p2@example.com" }),
+        ]}
+        totalCount={2}
+        hasActiveSearch={false}
+        selectedIds={new Set(["p1"])}
+        onToggleSelect={vi.fn()}
+        onMove={vi.fn()}
+        onEdit={vi.fn()}
+        onDelete={vi.fn()}
+        onAddHere={vi.fn()}
+        onDownload={vi.fn()}
+        onSelectAll={onSelectAll}
+      />,
+    );
+
+    await user.click(screen.getByRole("button", { name: "Select all in Eval" }));
+    expect(onSelectAll).toHaveBeenCalledWith(["p1", "p2"]);
   });
 
   it("renders the Email action only for the Sent Contracts column", async () => {
@@ -157,6 +191,7 @@ describe("Column", () => {
         onDelete={vi.fn()}
         onAddHere={vi.fn()}
         onDownload={vi.fn()}
+        onSelectAll={vi.fn()}
         onEmailSentContracts={onEmailSentContracts}
       />,
     );
@@ -177,6 +212,7 @@ describe("Column", () => {
         onDelete={vi.fn()}
         onAddHere={vi.fn()}
         onDownload={vi.fn()}
+        onSelectAll={vi.fn()}
         onEmailSentContracts={onEmailSentContracts}
       />,
     );
@@ -197,6 +233,7 @@ describe("Column", () => {
         onDelete={vi.fn()}
         onAddHere={vi.fn()}
         onDownload={vi.fn()}
+        onSelectAll={vi.fn()}
         onEmailSentContracts={onEmailSentContracts}
       />,
     );

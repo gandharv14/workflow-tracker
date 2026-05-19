@@ -180,6 +180,19 @@ export function Board({ projectId, initialPeople }: BoardProps) {
     setSelectedIds(new Set());
   }, []);
 
+  const selectAll = React.useCallback((ids: string[]) => {
+    setSelectedIds((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const id of ids) {
+        if (next.has(id)) continue;
+        next.add(id);
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, []);
+
   const moveOne = React.useCallback(
     async (id: string, step: Step) => {
       const previous = peopleById.get(id);
@@ -597,6 +610,7 @@ export function Board({ projectId, initialPeople }: BoardProps) {
                 onEdit={setEditing}
                 onDelete={handleDelete}
                 onDownload={handleDownloadStep}
+                onSelectAll={selectAll}
                 onEmailSentContracts={
                   project.canEmailSentContracts
                     ? handleEmailSentContracts
