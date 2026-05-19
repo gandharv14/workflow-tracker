@@ -25,16 +25,77 @@ function expiredCookie(name: string, domain?: string): string {
   return parts.join("; ");
 }
 
+function loggedOutPage(homeUrl: string): string {
+  return `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Logged out - Workflow Tracker</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        background: Canvas;
+        color: CanvasText;
+      }
+      main {
+        width: min(26rem, calc(100vw - 2rem));
+        border: 1px solid color-mix(in oklab, CanvasText 18%, transparent);
+        border-radius: 1rem;
+        padding: 2rem;
+        text-align: center;
+        box-shadow: 0 20px 45px color-mix(in oklab, CanvasText 10%, transparent);
+      }
+      h1 {
+        margin: 0;
+        font-size: 1.25rem;
+      }
+      p {
+        margin: 0.75rem 0 1.5rem;
+        color: color-mix(in oklab, CanvasText 65%, transparent);
+        line-height: 1.5;
+      }
+      a {
+        display: inline-flex;
+        min-height: 2.25rem;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.625rem;
+        background: CanvasText;
+        color: Canvas;
+        padding: 0 0.875rem;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Logged out of Workflow Tracker</h1>
+      <p>Your access cookie for this app was cleared. Use the button below to log back into this workflow app.</p>
+      <a href="${homeUrl}">Log in to Workflow Tracker</a>
+    </main>
+  </body>
+</html>`;
+}
+
 export function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const homeUrl = new URL("/", requestUrl);
-  const redirectUrl = isLocalHost(requestUrl.hostname)
-    ? homeUrl
-    : new URL(
-        `/logout?next=${encodeURIComponent(homeUrl.toString())}`,
-        "https://vercel.com",
-      );
-  const response = NextResponse.redirect(redirectUrl);
+  const response = new NextResponse(loggedOutPage(homeUrl.toString()), {
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
 
   const cookieNames = new Set([
     ...request.cookies.getAll().map((cookie) => cookie.name),
